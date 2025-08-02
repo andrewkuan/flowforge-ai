@@ -12,6 +12,9 @@ export default function MermaidDiagram({ chart, className }: MermaidDiagramProps
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return
+
     // Initialize mermaid with configuration
     mermaid.initialize({
       startOnLoad: false,
@@ -30,19 +33,33 @@ export default function MermaidDiagram({ chart, className }: MermaidDiagramProps
     })
 
     const renderDiagram = async () => {
-      if (ref.current) {
-        try {
-          // Clear previous content
+      // Double check ref is available
+      if (!ref.current) {
+        console.warn('Mermaid ref not available')
+        return
+      }
+
+      try {
+        // Clear previous content safely
+        if (ref.current) {
           ref.current.innerHTML = ''
-          
-          // Generate unique ID for this diagram
-          const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          
-          // Render the diagram
-          const { svg } = await mermaid.render(id, chart)
+        }
+        
+        // Generate unique ID for this diagram
+        const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        
+        // Render the diagram
+        const { svg } = await mermaid.render(id, chart)
+        
+        // Set SVG content safely
+        if (ref.current) {
           ref.current.innerHTML = svg
-        } catch (error) {
-          console.error('Mermaid rendering error:', error)
+        }
+      } catch (error) {
+        console.error('Mermaid rendering error:', error)
+        
+        // Set error content safely
+        if (ref.current) {
           ref.current.innerHTML = `
             <div style="
               padding: 1rem; 
@@ -66,7 +83,10 @@ export default function MermaidDiagram({ chart, className }: MermaidDiagramProps
       }
     }
 
-    renderDiagram()
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(renderDiagram, 100)
+    
+    return () => clearTimeout(timer)
   }, [chart])
 
   return (
