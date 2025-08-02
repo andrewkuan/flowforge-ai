@@ -476,6 +476,7 @@ export default function ChatPage() {
     // Primary indicators
     const strongIndicators = [
       'automation suggestions',
+      '**automation suggestions:**',
       'automate using n8n',
       'steps should be automated',
       'automation opportunities',
@@ -523,10 +524,16 @@ export default function ChatPage() {
       }
     }
     
+    // Special detection for the exact format in user's example:
+    // "**Automation Suggestions:**" followed by numbered items like "1.**Email Trigger**:"
+    const hasAutomationHeader = lowerContent.includes('**automation suggestions:**')
+    const hasSpecialFormat = hasAutomationHeader && numberedLines >= 3
+    
     // More flexible detection logic
     const isAutomationResponse = (
       hasStrongIndicator || 
       isAutomationContext ||
+      hasSpecialFormat ||
       (automationLines >= 2) ||
       (numberedLines >= 3 && lowerContent.includes('automat')) ||
       (numberedLines >= 4 && secondaryIndicators.some(indicator => lowerContent.includes(indicator)))
@@ -535,6 +542,8 @@ export default function ChatPage() {
     console.log('🔍 Enhanced Automation Detection:', { 
       hasStrongIndicator, 
       isAutomationContext,
+      hasAutomationHeader,
+      hasSpecialFormat,
       automationLines, 
       numberedLines,
       isAutomationResponse,
@@ -580,29 +589,45 @@ export default function ChatPage() {
         continue
       }
       
-      // Parse numbered items
-      const numberMatch = trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
-      if (numberMatch && numberMatch[2]) {
-        const suggestion = numberMatch[2].trim()
-        const suggestionLower = suggestion.toLowerCase()
-        
-        // Strategy 1: If we're in an automation section, add everything
-        if (inAutomationSection) {
-          suggestions.push(suggestion)
+      // Parse numbered items - handle both "1. text" and "1.**text**:" formats
+      const numberMatch = trimmedLine.match(/^(\d+)\.(\*\*)?(.+?)(\*\*)?:?\s*(.*)$/) || 
+                         trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
+      
+      if (numberMatch) {
+        // For format "1.**Email Trigger**: description", extract the title and description
+        let suggestion = ''
+        if (numberMatch.length >= 6 && numberMatch[3] && numberMatch[5]) {
+          // Format: "1.**Title**: Description"
+          suggestion = `${numberMatch[3].trim()}: ${numberMatch[5].trim()}`
+        } else if (numberMatch[2]) {
+          // Format: "1. Description"
+          suggestion = numberMatch[2].trim()
+        } else {
+          // Fallback
+          suggestion = trimmedLine.replace(/^\d+\.(\*\*)?/, '').replace(/(\*\*)?:?$/, '').trim()
         }
         
-        // Strategy 2: Add if content seems automation-related
-        if (suggestionLower.includes('automat') || 
-            suggestionLower.includes('n8n') ||
-            suggestionLower.includes('node') ||
-            suggestionLower.includes('trigger') ||
-            suggestionLower.includes('webhook') ||
-            suggestionLower.includes('api') ||
-            suggestionLower.includes('email') ||
-            suggestionLower.includes('schedule') ||
-            suggestionLower.includes('integrate') ||
-            suggestionLower.includes('workflow')) {
-          potentialSuggestions.push(suggestion)
+        if (suggestion) {
+          const suggestionLower = suggestion.toLowerCase()
+          
+          // Strategy 1: If we're in an automation section, add everything
+          if (inAutomationSection) {
+            suggestions.push(suggestion)
+          }
+          
+          // Strategy 2: Add if content seems automation-related
+          if (suggestionLower.includes('automat') || 
+              suggestionLower.includes('n8n') ||
+              suggestionLower.includes('node') ||
+              suggestionLower.includes('trigger') ||
+              suggestionLower.includes('webhook') ||
+              suggestionLower.includes('api') ||
+              suggestionLower.includes('email') ||
+              suggestionLower.includes('schedule') ||
+              suggestionLower.includes('integrate') ||
+              suggestionLower.includes('workflow')) {
+            potentialSuggestions.push(suggestion)
+          }
         }
       }
       
@@ -979,6 +1004,13 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
                 }
                 
                 // Check if this response contains automation suggestions
+                console.log('🔍 Checking for automation suggestions in aiContent:', {
+                  contentLength: aiContent.length,
+                  contentPreview: aiContent.substring(0, 500) + '...',
+                  hasAutomationSuggestionsHeader: aiContent.includes('**Automation Suggestions:**'),
+                  sessionId
+                })
+                
                 if (detectAutomationSuggestions(aiContent)) {
                   const suggestions = parseAutomationSuggestions(aiContent)
                   console.log('🤖 Automation Detection Result:', { 
