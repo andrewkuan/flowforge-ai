@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function HomePage() {
   return (
     <div style={{
@@ -25,18 +27,20 @@ export default function HomePage() {
           Turn automation ideas into n8n workflows
         </p>
         
-        <button style={{
-          backgroundColor: 'black',
-          color: 'white',
-          border: 'none',
-          padding: '12px 32px',
-          borderRadius: '4px',
-          fontSize: '1rem',
-          cursor: 'pointer',
-          transition: 'background-color 0.2s'
-        }}>
-          Start Chat
-        </button>
+        <Link href="/chat">
+          <button style={{
+            backgroundColor: 'black',
+            color: 'white',
+            border: 'none',
+            padding: '12px 32px',
+            borderRadius: '4px',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s'
+          }}>
+            Start Chat
+          </button>
+        </Link>
       </div>
     </div>
   )
