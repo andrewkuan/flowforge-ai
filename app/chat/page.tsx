@@ -6,6 +6,7 @@ import { StorageService } from '@/lib/storage'
 import { ChatMessage as StoredChatMessage } from '@/lib/database'
 import SessionHistory from '@/components/SessionHistory'
 import WorkflowRecommendationComponent from '@/components/WorkflowRecommendation'
+import MermaidDiagram from '@/components/MermaidDiagram'
 import { WorkflowAnalyzer, WorkflowRecommendation, WorkflowType } from '@/lib/workflow-analyzer'
 
 // Component to format AI messages with better structure
@@ -65,15 +66,57 @@ function FormattedMessage({ content }: { content: string }) {
     }
   }
 
+  // Function to extract and download Mermaid diagram
+  const extractAndDownloadMermaid = (text: string) => {
+    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
+    if (mermaidMatch) {
+      const mermaidContent = mermaidMatch[1].trim()
+      
+      // Create download
+      const blob = new Blob([mermaidContent], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'process-flowchart.mmd'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  // Function to copy Mermaid to clipboard
+  const copyMermaidToClipboard = (text: string) => {
+    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
+    if (mermaidMatch) {
+      const mermaidContent = mermaidMatch[1].trim()
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(mermaidContent).then(() => {
+        alert('Flowchart code copied to clipboard!')
+      }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = mermaidContent
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        alert('Flowchart code copied to clipboard!')
+      })
+    }
+  }
+
   // Split content into paragraphs and format numbered lists
   const formatContent = (text: string) => {
     const elements: JSX.Element[] = []
     
-    // Check if there's JSON content
+    // Check if there's JSON or Mermaid content
     const hasJSON = text.includes('```json')
+    const hasMermaid = text.includes('```mermaid')
     
-    // Split by code blocks first
-    const parts = text.split(/(```json[\s\S]*?```)/g)
+    // Split by code blocks first (both JSON and Mermaid)
+    const parts = text.split(/(```(?:json|mermaid)[\s\S]*?```)/g)
     
     parts.forEach((part, partIndex) => {
       if (part.startsWith('```json')) {
@@ -155,6 +198,79 @@ function FormattedMessage({ content }: { content: string }) {
             }}>
               <code>{jsonContent}</code>
             </pre>
+          </div>
+        )
+      } else if (part.startsWith('```mermaid')) {
+        // This is a Mermaid diagram block
+        const mermaidContent = part.replace(/```mermaid\s*/, '').replace(/\s*```$/, '').trim()
+        elements.push(
+          <div key={`mermaid-${partIndex}`} style={{ 
+            marginBottom: '1rem',
+            border: '1px solid #e1e5e9',
+            borderRadius: '8px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              backgroundColor: '#f6f8fa',
+              padding: '0.5rem 1rem',
+              borderBottom: '1px solid #e1e5e9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '0.85rem', color: '#656d76', fontWeight: '500' }}>
+                📊 Process Flowchart
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => copyMermaidToClipboard(part)}
+                  style={{
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#218838'
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#28a745'
+                  }}
+                >
+                  📋 Copy Code
+                </button>
+                <button
+                  onClick={() => extractAndDownloadMermaid(part)}
+                  style={{
+                    backgroundColor: '#17a2b8',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#138496'
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#17a2b8'
+                  }}
+                >
+                  📥 Download
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '1rem', backgroundColor: '#ffffff' }}>
+              <MermaidDiagram chart={mermaidContent} />
+            </div>
           </div>
         )
       } else {
