@@ -1172,7 +1172,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
       <div style={{ 
         flex: 1, 
         display: 'flex',
-        maxWidth: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1400px' : '800px',
+        maxWidth: '1400px', // Fixed width to prevent jarring resize when panels appear
         margin: '0 auto',
         width: '100%'
       }}>
@@ -1458,7 +1458,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
         backgroundColor: 'white'
       }}>
         <div style={{ 
-          maxWidth: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1400px' : '800px', 
+          maxWidth: '1400px', // Fixed width to prevent jarring resize when panels appear 
           margin: '0 auto',
           display: 'flex',
           gap: '0.75rem',
