@@ -50,18 +50,26 @@ function FormattedMessage({
 
   // Function to copy JSON to clipboard
   const copyJSONToClipboard = (text: string) => {
+    console.log('📋 Copy button clicked, text content:', text.substring(0, 200) + '...')
+    
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+    console.log('📋 JSON match found:', !!jsonMatch)
+    
     if (jsonMatch) {
       const jsonContent = jsonMatch[1].trim()
+      console.log('📋 Extracted JSON content:', jsonContent.substring(0, 200) + '...')
+      
       try {
         // Validate JSON
         JSON.parse(jsonContent)
+        console.log('📋 JSON validation successful')
         
         // Copy to clipboard
         navigator.clipboard.writeText(jsonContent).then(() => {
-          // Visual feedback - could be enhanced with a toast notification
+          console.log('📋 Successfully copied to clipboard')
           alert('JSON workflow copied to clipboard!')
-        }).catch(() => {
+        }).catch((error) => {
+          console.log('📋 Clipboard API failed, using fallback:', error)
           // Fallback for older browsers
           const textArea = document.createElement('textarea')
           textArea.value = jsonContent
@@ -72,8 +80,12 @@ function FormattedMessage({
           alert('JSON workflow copied to clipboard!')
         })
       } catch (e) {
+        console.log('📋 JSON validation failed:', e)
         alert('Invalid JSON format')
       }
+    } else {
+      console.log('📋 No JSON code block found in content')
+      alert('No JSON workflow found to copy')
     }
   }
 
@@ -1046,6 +1058,17 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
     initializeSession()
   }, [])
 
+  // Auto-scroll to show automation panel when it opens
+  useEffect(() => {
+    if (showAutomationSuggestions) {
+      // Small delay to ensure panel is rendered before scrolling
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        console.log('📍 Auto-scrolled to show automation panel')
+      }, 100)
+    }
+  }, [showAutomationSuggestions])
+
   // Auto-save workflow when JSON is detected in AI response
   const detectAndSaveWorkflow = async (content: string, sessionId: number) => {
     const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
@@ -1397,7 +1420,8 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
             ))}
             
             {/* Extract Process Steps Button */}
-            {showExtractButton && currentStep === 'chat' && (
+            {showExtractButton && currentStep === 'chat' && 
+             !(messages.length > 0 && messages[messages.length - 1]?.content?.includes('**Automation Suggestions:**')) && (
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'center', 
