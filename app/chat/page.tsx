@@ -3,6 +3,74 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
+// Component to format AI messages with better structure
+function FormattedMessage({ content }: { content: string }) {
+  // Split content into paragraphs and format numbered lists
+  const formatContent = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim() !== '')
+    const elements: JSX.Element[] = []
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim()
+      
+      // Check if it's a numbered list item
+      if (/^\d+\./.test(trimmedLine)) {
+        elements.push(
+          <div key={index} style={{ 
+            marginBottom: '0.5rem',
+            paddingLeft: '1rem'
+          }}>
+            <strong style={{ color: '#1a73e8' }}>
+              {trimmedLine.split('.')[0]}.
+            </strong>
+            <span style={{ marginLeft: '0.5rem' }}>
+              {trimmedLine.substring(trimmedLine.indexOf('.') + 1).trim()}
+            </span>
+          </div>
+        )
+      }
+      // Check if it's a bullet point
+      else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
+        elements.push(
+          <div key={index} style={{ 
+            marginBottom: '0.4rem',
+            paddingLeft: '1rem',
+            display: 'flex',
+            alignItems: 'flex-start'
+          }}>
+            <span style={{ 
+              color: '#1a73e8', 
+              marginRight: '0.5rem',
+              fontWeight: 'bold'
+            }}>•</span>
+            <span>{trimmedLine.substring(2).trim()}</span>
+          </div>
+        )
+      }
+      // Regular paragraph
+      else {
+        elements.push(
+          <p key={index} style={{ 
+            marginBottom: '0.8rem',
+            lineHeight: '1.5',
+            color: '#2c3e50'
+          }}>
+            {trimmedLine}
+          </p>
+        )
+      }
+    })
+    
+    return elements
+  }
+
+  return (
+    <div style={{ lineHeight: '1.6' }}>
+      {formatContent(content)}
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [input, setInput] = useState('')
@@ -136,30 +204,71 @@ export default function ChatPage() {
           <div style={{ marginBottom: '2rem' }}>
             {messages.map((message, index) => (
               <div key={index} style={{
-                marginBottom: '1rem',
+                marginBottom: '1.5rem',
                 display: 'flex',
                 justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start'
               }}>
                 <div style={{
-                  maxWidth: '70%',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '8px',
-                  backgroundColor: message.role === 'user' ? 'black' : '#f5f5f5',
-                  color: message.role === 'user' ? 'white' : 'black'
+                  maxWidth: '80%',
+                  padding: message.role === 'user' ? '0.75rem 1rem' : '1rem 1.25rem',
+                  borderRadius: '12px',
+                  backgroundColor: message.role === 'user' ? 'black' : '#f8f9fa',
+                  color: message.role === 'user' ? 'white' : '#2c3e50',
+                  border: message.role === 'assistant' ? '1px solid #e9ecef' : 'none',
+                  boxShadow: message.role === 'assistant' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                 }}>
-                  {message.content}
+                  {message.role === 'assistant' ? (
+                    <FormattedMessage content={message.content} />
+                  ) : (
+                    message.content
+                  )}
                 </div>
               </div>
             ))}
             {isLoading && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'flex-start',
+                marginBottom: '1.5rem'
+              }}>
                 <div style={{
-                  padding: '0.75rem 1rem',
-                  borderRadius: '8px',
-                  backgroundColor: '#f5f5f5',
-                  color: '#666'
+                  padding: '1rem 1.25rem',
+                  borderRadius: '12px',
+                  backgroundColor: '#f8f9fa',
+                  border: '1px solid #e9ecef',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
                 }}>
-                  Thinking...
+                  <div style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#1a73e8',
+                    animation: 'pulse 1.5s ease-in-out infinite'
+                  }}></div>
+                  <div style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#1a73e8',
+                    animation: 'pulse 1.5s ease-in-out infinite 0.3s'
+                  }}></div>
+                  <div style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#1a73e8',
+                    animation: 'pulse 1.5s ease-in-out infinite 0.6s'
+                  }}></div>
+                  <span style={{ 
+                    marginLeft: '0.5rem',
+                    color: '#666',
+                    fontSize: '0.9rem'
+                  }}>
+                    FlowForge AI is thinking...
+                  </span>
                 </div>
               </div>
             )}
