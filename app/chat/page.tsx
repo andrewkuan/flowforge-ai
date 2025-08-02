@@ -2,13 +2,28 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { StorageService } from '@/lib/storage'
-import { ChatMessage as StoredChatMessage, ProcessStep, WorkflowState } from '@/lib/database'
-import SessionHistory from '@/components/SessionHistory'
 import EditableProcessPanel from '@/components/EditableProcessPanel'
 import AutomationSuggestionsPanel from '@/components/AutomationSuggestionsPanel'
 
 import MermaidDiagram from '@/components/MermaidDiagram'
+
+// Local type definitions (simplified without database dependencies)
+interface ProcessStep {
+  id: string
+  content: string
+}
+
+type WorkflowState = 
+  | 'initial'
+  | 'process_generated'
+  | 'process_confirmed'
+  | 'automation_generated'
+  | 'workflow_generated'
+
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 // Component to format AI messages with better structure
 function FormattedMessage({ 
@@ -350,8 +365,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
 
   const [flowcharts, setFlowcharts] = useState<Array<{id: string, content: string, title: string}>>([])
   const [hasActiveFlowchart, setHasActiveFlowchart] = useState(false)
@@ -709,11 +722,7 @@ export default function ChatPage() {
         setShowProcessPanel(true)
         setCurrentStep('process_editing')
         
-        // Save to database
-        if (currentSessionId) {
-          StorageService.saveProcessSteps(currentSessionId, steps).catch(console.error)
-          StorageService.updateWorkflowState(currentSessionId, 'process_generated').catch(console.error)
-        }
+        // Note: No database saving in simplified version
       } else {
         // If no steps found, create default ones
         const defaultSteps: ProcessStep[] = [
@@ -741,10 +750,7 @@ export default function ChatPage() {
     setIsLoading(true)
     setCurrentStep('chat')
 
-    // Send to AI (simplified version)
-    if (currentSessionId) {
-      StorageService.autoSaveMessage('user', automationMessage).catch(console.error)
-    }
+    // Note: No auto-saving in simplified version
     
     // Send to AI using existing fetch logic
     const updatedMessages = [...messages, { role: 'user', content: automationMessage }]
@@ -819,13 +825,8 @@ export default function ChatPage() {
         setShowAutomationSuggestions(true)
         setCurrentStep('automation_viewing')
         
-        // Save to database
-        if (currentSessionId) {
-          StorageService.saveAutomationSuggestions(currentSessionId, suggestions)
-            .then(() => console.log('✅ Saved successfully'))
-            .catch(console.error)
-          StorageService.updateWorkflowState(currentSessionId, 'automation_generated').catch(console.error)
-        }
+        // Note: No database saving in simplified version
+        console.log('✅ Saved to local state successfully')
       }
     }
   }
@@ -833,11 +834,7 @@ export default function ChatPage() {
   // Handle process steps changes
   const handleProcessStepsChange = (steps: ProcessStep[]) => {
     setProcessSteps(steps)
-    
-    // Save to database when process steps change
-    if (currentSessionId) {
-      StorageService.saveProcessSteps(currentSessionId, steps).catch(console.error)
-    }
+    // Note: No database saving in simplified version
   }
 
   // Handle process confirmation
@@ -855,10 +852,7 @@ export default function ChatPage() {
       setShowProcessPanel(false)
       
       // Update workflow state to confirmed
-      if (currentSessionId) {
-        StorageService.updateWorkflowState(currentSessionId, 'process_confirmed').catch(console.error)
-        setWorkflowState('process_confirmed')
-      }
+      setWorkflowState('process_confirmed')
       
       // Create a detailed message asking for automation suggestions
       const processText = processSteps.map((step, index) => `${index + 1}. ${step.content}`).join('\n')
@@ -872,10 +866,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
       setInput('')
       setIsLoading(true)
 
-      // Auto-save and send to AI
-      if (currentSessionId) {
-        StorageService.autoSaveMessage('user', confirmationMessage).catch(console.error)
-      }
+      // Note: No auto-saving in simplified version
 
       // Send to AI
     fetch('/api/chat', {
@@ -932,9 +923,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
       setIsLoading(false)
       
       // Auto-save AI response
-      if (currentSessionId) {
-        StorageService.autoSaveMessage('assistant', aiContent).catch(console.error)
-      }
+      // Note: No auto-saving in simplified version
     }).catch(error => {
       console.error('Error:', error)
       setIsLoading(false)
@@ -956,11 +945,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
     setIsLoading(true)
 
     // Auto-save and send to AI, and update workflow state
-    if (currentSessionId) {
-      StorageService.autoSaveMessage('user', confirmationMessage).catch(console.error)
-      StorageService.updateWorkflowState(currentSessionId, 'workflow_generated').catch(console.error)
-      setWorkflowState('workflow_generated')
-    }
+    setWorkflowState('workflow_generated')
 
     // Send to AI
     fetch('/api/chat', {
@@ -1017,46 +1002,14 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
       setIsLoading(false)
       
       // Auto-save AI response
-      if (currentSessionId) {
-        StorageService.autoSaveMessage('assistant', aiContent).catch(console.error)
-      }
+      // Note: No auto-saving in simplified version
     }).catch(error => {
       console.error('Error:', error)
       setIsLoading(false)
     })
   }
 
-  // Initialize session on component mount
-  useEffect(() => {
-    // Set up immediate initialization to prevent hanging
-    setIsInitialized(true) // Initialize immediately
-    
-    // Try to load stored data in the background
-    const initializeSession = async () => {
-      try {
-        const result = await StorageService.initializeSession()
-        
-        if (result.messages && result.messages.length > 0) {
-          // Convert stored messages to component format
-          const formattedMessages = result.messages.map((msg: any) => ({
-            role: msg.role,
-            content: msg.content
-          }))
-          setMessages(formattedMessages)
-        }
-        
-        setCurrentSessionId(result.sessionId)
-      } catch (error) {
-        console.error('Storage initialization failed, continuing without stored data:', error)
-        // App continues to work without storage
-        setCurrentSessionId(null)
-        setMessages([])
-      }
-    }
-
-    // Run initialization in background without blocking UI
-    initializeSession()
-  }, [])
+  // Note: No session initialization needed in simplified version
 
   // Auto-scroll to show automation panel when it opens
   useEffect(() => {
@@ -1069,19 +1022,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
     }
   }, [showAutomationSuggestions])
 
-  // Auto-save workflow when JSON is detected in AI response
-  const detectAndSaveWorkflow = async (content: string, sessionId: number) => {
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
-    if (jsonMatch) {
-      try {
-        const jsonContent = jsonMatch[1].trim()
-        JSON.parse(jsonContent) // Validate JSON
-        await StorageService.saveWorkflow(sessionId, jsonContent)
-      } catch (error) {
-        console.error('Failed to save workflow:', error)
-      }
-    }
-  }
+  // Note: detectAndSaveWorkflow removed in simplified version
 
 
 
@@ -1104,17 +1045,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
     setInput('')
     setIsLoading(true)
 
-    // Auto-save user message and handle session creation
-    let sessionId = currentSessionId
-    try {
-      if (!sessionId) {
-        sessionId = await StorageService.createNewSession(input)
-        setCurrentSessionId(sessionId)
-      }
-      await StorageService.autoSaveMessage('user', input)
-    } catch (error) {
-      console.error('Failed to save user message:', error)
-    }
+    // Note: No session management or auto-saving in simplified version
 
     try {
       const response = await fetch('/api/chat', {
@@ -1160,15 +1091,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
                   console.log('📝 Extract button now visible for user')
                 }
                 
-                // Auto-save complete AI response
-                if (sessionId && aiContent) {
-                  try {
-                    await StorageService.autoSaveMessage('assistant', aiContent)
-                    await detectAndSaveWorkflow(aiContent, sessionId)
-                  } catch (error) {
-                    console.error('Failed to save assistant message:', error)
-                  }
-                }
+                // Note: No auto-saving in simplified version
                 return
               }
               
@@ -1201,100 +1124,15 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
         content: errorMessage
       }])
       
-      // Save error message too
-      if (sessionId) {
-        try {
-          await StorageService.autoSaveMessage('assistant', errorMessage)
-        } catch (saveError) {
-          console.error('Failed to save error message:', saveError)
-        }
-      }
+      // Note: No error message saving in simplified version
     }
     
     setIsLoading(false)
   }
 
-  // Start new session function
-  const startNewSession = async () => {
-    try {
-      const newSessionId = await StorageService.startNewSession()
-      setCurrentSessionId(newSessionId)
-      setMessages([])
-      
-      // Clear all workflow data for new session
-      setProcessSteps([])
-      setAutomationSuggestions([])
-      setWorkflowState('initial')
-      setShowProcessPanel(false)
-      setShowAutomationSuggestions(false)
-      setCurrentStep('chat')
-      setShowExtractButton(false)
-    } catch (error) {
-      console.error('Failed to start new session:', error)
-    }
-  }
 
-  // Load existing session
-  const loadSession = async (sessionId: number) => {
-    try {
-      const messages = await StorageService.loadSession(sessionId)
-      const formattedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-      setMessages(formattedMessages)
-      setCurrentSessionId(sessionId)
-      
-      // Load persistent workflow state and data
-      const savedWorkflowState = await StorageService.getSessionWorkflowState(sessionId)
-      const savedProcessSteps = await StorageService.getSessionProcessSteps(sessionId)
-      const savedAutomationSuggestions = await StorageService.getSessionAutomationSuggestions(sessionId)
-      
-      console.log('🔄 Loading Session Data:', {
-        sessionId,
-        savedWorkflowState,
-        processStepsCount: savedProcessSteps.length,
-        automationSuggestionsCount: savedAutomationSuggestions.length,
-        processSteps: savedProcessSteps,
-        automationSuggestions: savedAutomationSuggestions
-      })
-      
-      if (savedAutomationSuggestions.length === 0 && savedWorkflowState === 'process_confirmed') {
-        console.log('⚠️ PERSISTENCE ISSUE: WorkflowState is process_confirmed but no automation suggestions found')
-        console.log('This indicates automation suggestions were generated but not saved to database')
-      }
-      
-      setWorkflowState(savedWorkflowState)
-      setProcessSteps(savedProcessSteps)
-      setAutomationSuggestions(savedAutomationSuggestions)
-      
-      // Show appropriate panels based on workflow state
-      switch (savedWorkflowState) {
-        case 'process_generated':
-        case 'process_confirmed':
-          console.log('📋 Showing Process Panel')
-          setShowProcessPanel(true)
-          setShowAutomationSuggestions(false)
-          break
-        case 'automation_generated':
-          console.log('🤖 Showing Automation Panel')
-          setShowProcessPanel(false)
-          setShowAutomationSuggestions(true)
-          break
-        case 'workflow_generated':
-          console.log('✅ Workflow Complete - Hiding All Panels')
-          setShowProcessPanel(false)
-          setShowAutomationSuggestions(false)
-          break
-        default:
-          console.log('🆕 Initial State - Hiding All Panels')
-          setShowProcessPanel(false)
-          setShowAutomationSuggestions(false)
-      }
-    } catch (error) {
-      console.error('Failed to load session:', error)
-    }
-  }
+
+
 
   return (
     <div style={{ 
@@ -1326,31 +1164,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
             n8n Workflow Assistant
           </p>
-          {isInitialized && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <SessionHistory 
-                currentSessionId={currentSessionId}
-                onSessionSelect={loadSession}
-                onNewSession={startNewSession}
-              />
-              {messages.length > 0 && (
-                <button
-                  onClick={startNewSession}
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: '1px solid #ccc',
-                    borderRadius: '6px',
-                    padding: '0.25rem 0.75rem',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    color: '#666'
-                  }}
-                >
-                  New Session
-                </button>
-              )}
-            </div>
-          )}
+
         </div>
       </div>
 
@@ -1368,11 +1182,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           padding: '2rem',
           paddingRight: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1rem' : '2rem'
         }}>
-        {!isInitialized ? (
-          <div style={{ textAlign: 'center', marginTop: '4rem' }}>
-            <p style={{ color: '#666' }}>Loading...</p>
-          </div>
-        ) : messages.length === 0 ? (
+        {messages.length === 0 ? (
           <div style={{ textAlign: 'center', marginTop: '4rem' }}>
             <h2 style={{ color: 'black', marginBottom: '1rem' }}>
               Let's create your n8n workflow
