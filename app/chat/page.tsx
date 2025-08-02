@@ -10,7 +10,17 @@ import MermaidDiagram from '@/components/MermaidDiagram'
 import { WorkflowAnalyzer, WorkflowRecommendation, WorkflowType } from '@/lib/workflow-analyzer'
 
 // Component to format AI messages with better structure
-function FormattedMessage({ content }: { content: string }) {
+function FormattedMessage({ 
+  content, 
+  hideFlowcharts = false, 
+  copyMermaidToClipboard, 
+  extractAndDownloadMermaid 
+}: { 
+  content: string, 
+  hideFlowcharts?: boolean,
+  copyMermaidToClipboard: (text: string) => void,
+  extractAndDownloadMermaid: (text: string) => void
+}) {
   
   // Function to extract and download JSON from message content
   const extractAndDownloadJSON = (text: string) => {
@@ -66,46 +76,11 @@ function FormattedMessage({ content }: { content: string }) {
     }
   }
 
-  // Function to extract and download Mermaid diagram
-  const extractAndDownloadMermaid = (text: string) => {
-    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
-    if (mermaidMatch) {
-      const mermaidContent = mermaidMatch[1].trim()
-      
-      // Create download
-      const blob = new Blob([mermaidContent], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'process-flowchart.mmd'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }
-  }
 
-  // Function to copy Mermaid to clipboard
-  const copyMermaidToClipboard = (text: string) => {
-    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
-    if (mermaidMatch) {
-      const mermaidContent = mermaidMatch[1].trim()
-      
-      // Copy to clipboard
-      navigator.clipboard.writeText(mermaidContent).then(() => {
-        alert('Flowchart code copied to clipboard!')
-      }).catch(() => {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea')
-        textArea.value = mermaidContent
-        document.body.appendChild(textArea)
-        textArea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textArea)
-        alert('Flowchart code copied to clipboard!')
-      })
-    }
-  }
+
+
+
+
 
   // Split content into paragraphs and format numbered lists
   const formatContent = (text: string) => {
@@ -202,77 +177,94 @@ function FormattedMessage({ content }: { content: string }) {
         )
       } else if (part.startsWith('```mermaid')) {
         // This is a Mermaid diagram block
-        const mermaidContent = part.replace(/```mermaid\s*/, '').replace(/\s*```$/, '').trim()
-        elements.push(
-          <div key={`mermaid-${partIndex}`} style={{ 
-            marginBottom: '1rem',
-            border: '1px solid #e1e5e9',
-            borderRadius: '8px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              backgroundColor: '#f6f8fa',
-              padding: '0.5rem 1rem',
-              borderBottom: '1px solid #e1e5e9',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+        if (hideFlowcharts) {
+          // Show a placeholder in the main chat when flowcharts are in sidebar
+          elements.push(
+            <div key={`mermaid-placeholder-${partIndex}`} style={{
+              padding: '1rem',
+              backgroundColor: '#f8f9fa',
+              border: '1px solid #e1e5e9',
+              borderRadius: '8px',
+              textAlign: 'center',
+              marginBottom: '1rem',
+              color: '#6c757d'
             }}>
-              <span style={{ fontSize: '0.85rem', color: '#656d76', fontWeight: '500' }}>
-                📊 Process Flowchart
-              </span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={() => copyMermaidToClipboard(part)}
-                  style={{
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    (e.target as HTMLButtonElement).style.backgroundColor = '#218838'
-                  }}
-                  onMouseOut={(e) => {
-                    (e.target as HTMLButtonElement).style.backgroundColor = '#28a745'
-                  }}
-                >
-                  📋 Copy Code
-                </button>
-                <button
-                  onClick={() => extractAndDownloadMermaid(part)}
-                  style={{
-                    backgroundColor: '#17a2b8',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '4px',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    (e.target as HTMLButtonElement).style.backgroundColor = '#138496'
-                  }}
-                  onMouseOut={(e) => {
-                    (e.target as HTMLButtonElement).style.backgroundColor = '#17a2b8'
-                  }}
-                >
-                  📥 Download
-                </button>
+              📊 Flowchart moved to sidebar →
+            </div>
+          )
+        } else {
+          const mermaidContent = part.replace(/```mermaid\s*/, '').replace(/\s*```$/, '').trim()
+          elements.push(
+            <div key={`mermaid-${partIndex}`} style={{ 
+              marginBottom: '1rem',
+              border: '1px solid #e1e5e9',
+              borderRadius: '8px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                backgroundColor: '#f6f8fa',
+                padding: '0.5rem 1rem',
+                borderBottom: '1px solid #e1e5e9',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontSize: '0.85rem', color: '#656d76', fontWeight: '500' }}>
+                  📊 Process Flowchart
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => copyMermaidToClipboard(part)}
+                    style={{
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '4px',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      (e.target as HTMLButtonElement).style.backgroundColor = '#218838'
+                    }}
+                    onMouseOut={(e) => {
+                      (e.target as HTMLButtonElement).style.backgroundColor = '#28a745'
+                    }}
+                  >
+                    📋 Copy Code
+                  </button>
+                  <button
+                    onClick={() => extractAndDownloadMermaid(part)}
+                    style={{
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '4px',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      (e.target as HTMLButtonElement).style.backgroundColor = '#138496'
+                    }}
+                    onMouseOut={(e) => {
+                      (e.target as HTMLButtonElement).style.backgroundColor = '#17a2b8'
+                    }}
+                  >
+                    📥 Download
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '1rem', backgroundColor: '#ffffff' }}>
+                <MermaidDiagram chart={mermaidContent} />
               </div>
             </div>
-            <div style={{ padding: '1rem', backgroundColor: '#ffffff' }}>
-              <MermaidDiagram chart={mermaidContent} />
-            </div>
-          </div>
-        )
+          )
+        }
       } else {
         // Regular text content
         const lines = part.split('\n').filter(line => line.trim() !== '')
@@ -349,6 +341,78 @@ export default function ChatPage() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [currentRecommendation, setCurrentRecommendation] = useState<WorkflowRecommendation | null>(null)
   const [showRecommendation, setShowRecommendation] = useState(false)
+  const [flowcharts, setFlowcharts] = useState<Array<{id: string, content: string, title: string}>>([])
+  const [hasActiveFlowchart, setHasActiveFlowchart] = useState(false)
+
+  // Function to copy Mermaid to clipboard
+  const copyMermaidToClipboard = (text: string) => {
+    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
+    if (mermaidMatch) {
+      const mermaidContent = mermaidMatch[1].trim()
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(mermaidContent).then(() => {
+        alert('Flowchart code copied to clipboard!')
+      }).catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = mermaidContent
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        alert('Flowchart code copied to clipboard!')
+      })
+    }
+  }
+
+  // Extract and download Mermaid diagram
+  const extractAndDownloadMermaid = (text: string) => {
+    const mermaidMatch = text.match(/```mermaid\s*([\s\S]*?)\s*```/)
+    if (mermaidMatch) {
+      const mermaidContent = mermaidMatch[1].trim()
+      
+      // Create download
+      const blob = new Blob([mermaidContent], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'process-flowchart.mmd'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  // Extract flowcharts from messages and update flowchart state
+  const updateFlowcharts = () => {
+    const foundFlowcharts: Array<{id: string, content: string, title: string}> = []
+    
+    messages.forEach((message, index) => {
+      if (message.role === 'assistant') {
+        const mermaidMatches = message.content.match(/```mermaid\s*([\s\S]*?)\s*```/g)
+        if (mermaidMatches) {
+          mermaidMatches.forEach((match, matchIndex) => {
+            const content = match.replace(/```mermaid\s*/, '').replace(/\s*```$/, '').trim()
+            foundFlowcharts.push({
+              id: `flowchart-${index}-${matchIndex}`,
+              content,
+              title: `Process Flowchart ${foundFlowcharts.length + 1}`
+            })
+          })
+        }
+      }
+    })
+    
+    setFlowcharts(foundFlowcharts)
+    setHasActiveFlowchart(foundFlowcharts.length > 0)
+  }
+
+  // Update flowcharts when messages change
+  useEffect(() => {
+    updateFlowcharts()
+  }, [messages])
 
   // Initialize session on component mount
   useEffect(() => {
@@ -661,14 +725,20 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Chat Area */}
+      {/* Main Content Area */}
       <div style={{ 
         flex: 1, 
-        padding: '2rem',
-        maxWidth: '800px',
+        display: 'flex',
+        maxWidth: hasActiveFlowchart ? '1400px' : '800px',
         margin: '0 auto',
         width: '100%'
       }}>
+        {/* Chat Area */}
+        <div style={{ 
+          flex: 1,
+          padding: '2rem',
+          paddingRight: hasActiveFlowchart ? '1rem' : '2rem'
+        }}>
         {!isInitialized ? (
           <div style={{ textAlign: 'center', marginTop: '4rem' }}>
             <p style={{ color: '#666' }}>Loading...</p>
@@ -700,9 +770,20 @@ export default function ChatPage() {
                   boxShadow: message.role === 'assistant' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                 }}>
                   {message.role === 'assistant' ? (
-                    <FormattedMessage content={message.content} />
+                    <FormattedMessage 
+                      content={message.content} 
+                      hideFlowcharts={hasActiveFlowchart}
+                      copyMermaidToClipboard={copyMermaidToClipboard}
+                      extractAndDownloadMermaid={extractAndDownloadMermaid}
+                    />
                   ) : (
-                    message.content
+                    <div style={{
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      lineHeight: '1.5'
+                    }}>
+                      {message.content}
+                    </div>
                   )}
                 </div>
               </div>
@@ -768,6 +849,90 @@ export default function ChatPage() {
             )}
           </div>
         )}
+        </div>
+
+        {/* Flowchart Sidebar */}
+        {hasActiveFlowchart && (
+          <div style={{
+            width: '400px',
+            padding: '2rem 2rem 2rem 1rem',
+            borderLeft: '1px solid #e5e5e5',
+            backgroundColor: '#fafafa',
+            overflowY: 'auto'
+          }}>
+            <h3 style={{ 
+              fontSize: '1rem', 
+              fontWeight: '600', 
+              margin: '0 0 1rem 0',
+              color: '#2c3e50'
+            }}>
+              📊 Process Flowcharts
+            </h3>
+            {flowcharts.map((flowchart, index) => (
+              <div key={flowchart.id} style={{
+                marginBottom: '2rem',
+                border: '1px solid #e1e5e9',
+                borderRadius: '8px',
+                backgroundColor: 'white',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  backgroundColor: '#f6f8fa',
+                  padding: '0.75rem 1rem',
+                  borderBottom: '1px solid #e1e5e9',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ 
+                    fontSize: '0.85rem', 
+                    color: '#656d76', 
+                    fontWeight: '500' 
+                  }}>
+                    {flowchart.title}
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => copyMermaidToClipboard(`\`\`\`mermaid\n${flowchart.content}\n\`\`\``)}
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                      title="Copy flowchart code"
+                    >
+                      📋
+                    </button>
+                    <button
+                      onClick={() => extractAndDownloadMermaid(`\`\`\`mermaid\n${flowchart.content}\n\`\`\``)}
+                      style={{
+                        backgroundColor: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                      title="Download flowchart"
+                    >
+                      📥
+                    </button>
+                  </div>
+                </div>
+                <div style={{ padding: '1rem' }}>
+                  <MermaidDiagram chart={flowchart.content} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Input Area */}
@@ -777,10 +942,11 @@ export default function ChatPage() {
         backgroundColor: 'white'
       }}>
         <div style={{ 
-          maxWidth: '800px', 
+          maxWidth: hasActiveFlowchart ? '1400px' : '800px', 
           margin: '0 auto',
           display: 'flex',
-          gap: '0.5rem'
+          gap: '0.75rem',
+          alignItems: 'flex-end'
         }}>
           <textarea
             value={input}
@@ -791,34 +957,62 @@ export default function ChatPage() {
                 sendMessage()
               }
             }}
-            placeholder="Describe your automation idea... (Shift+Enter for new line)"
+            placeholder="Continue the conversation... (Shift+Enter for new line)"
             style={{
               flex: 1,
-              padding: '0.75rem 1rem',
-              border: '1px solid #ccc',
-              borderRadius: '8px',
+              padding: '1rem 1.25rem',
+              border: '2px solid #e1e5e9',
+              borderRadius: '12px',
               fontSize: '1rem',
               outline: 'none',
-              resize: 'vertical',
-              minHeight: '2.5rem',
+              resize: 'none',
+              minHeight: '3rem',
               maxHeight: '8rem',
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              lineHeight: '1.5',
+              transition: 'border-color 0.2s',
+              backgroundColor: '#fafafa'
+            }}
+            onFocus={(e) => {
+              const target = e.target as HTMLTextAreaElement
+              target.style.borderColor = '#1a73e8'
+              target.style.backgroundColor = 'white'
+            }}
+            onBlur={(e) => {
+              const target = e.target as HTMLTextAreaElement
+              target.style.borderColor = '#e1e5e9'
+              target.style.backgroundColor = '#fafafa'
             }}
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
             style={{
-              backgroundColor: input.trim() ? 'black' : '#ccc',
+              backgroundColor: input.trim() ? '#1a73e8' : '#ccc',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
-              padding: '0.75rem 1.5rem',
+              borderRadius: '12px',
+              padding: '1rem 2rem',
               fontSize: '1rem',
-              cursor: input.trim() ? 'pointer' : 'not-allowed'
+              fontWeight: '500',
+              cursor: input.trim() ? 'pointer' : 'not-allowed',
+              transition: 'background-color 0.2s',
+              minHeight: '3rem',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            onMouseOver={(e) => {
+              if (input.trim()) {
+                (e.target as HTMLButtonElement).style.backgroundColor = '#1557b0'
+              }
+            }}
+            onMouseOut={(e) => {
+              if (input.trim()) {
+                (e.target as HTMLButtonElement).style.backgroundColor = '#1a73e8'
+              }
             }}
           >
-            Send
+            {isLoading ? '...' : 'Send'}
           </button>
         </div>
       </div>
