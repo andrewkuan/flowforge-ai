@@ -247,7 +247,7 @@ Be relentlessly curious, empathetic, and thorough. Your goal is to become an exp
 
     // Create streaming response
     const stream = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-7-sonnet-20250224',
       max_tokens: 4000,  // Increased for complete n8n workflow generation
       system: systemPrompt,
       messages: anthropicMessages,
