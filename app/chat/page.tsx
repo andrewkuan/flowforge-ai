@@ -63,44 +63,69 @@ function FormattedMessage({
     }
   }
 
-  // Function to copy JSON to clipboard
-  const copyJSONToClipboard = (text: string) => {
-    console.log('📋 Copy button clicked, text content:', text.substring(0, 200) + '...')
+  // Function to copy JSON to clipboard with improved error handling
+  const copyJSONToClipboard = async (text: string) => {
+    console.log('📋 Copy button clicked, text length:', text.length)
     
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
     console.log('📋 JSON match found:', !!jsonMatch)
     
-    if (jsonMatch) {
+    if (!jsonMatch) {
+      console.log('📋 No JSON code block found in content')
+      setCopyStatus({show: true, success: false, message: 'No JSON workflow found to copy'})
+      setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
+      return
+    }
+
       const jsonContent = jsonMatch[1].trim()
-      console.log('📋 Extracted JSON content:', jsonContent.substring(0, 200) + '...')
-      
+    console.log('📋 Extracted JSON content length:', jsonContent.length)
+    
       try {
         // Validate JSON
         JSON.parse(jsonContent)
-        console.log('📋 JSON validation successful')
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(jsonContent).then(() => {
-          console.log('📋 Successfully copied to clipboard')
-          alert('JSON workflow copied to clipboard!')
-        }).catch((error) => {
-          console.log('📋 Clipboard API failed, using fallback:', error)
-          // Fallback for older browsers
+      console.log('📋 JSON validation successful')
+      
+      // Try modern Clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(jsonContent)
+          console.log('📋 Successfully copied via Clipboard API')
+          setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+          setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
+          return
+        } catch (clipboardError) {
+          console.log('📋 Clipboard API failed:', clipboardError)
+        }
+      }
+      
+      // Fallback method for older browsers or permission issues
+      console.log('📋 Using fallback copy method')
           const textArea = document.createElement('textarea')
           textArea.value = jsonContent
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
           document.body.appendChild(textArea)
+      textArea.focus()
           textArea.select()
-          document.execCommand('copy')
+      
+      const successful = document.execCommand('copy')
           document.body.removeChild(textArea)
-          alert('JSON workflow copied to clipboard!')
-        })
-      } catch (e) {
-        console.log('📋 JSON validation failed:', e)
-        alert('Invalid JSON format')
+      
+      if (successful) {
+        console.log('📋 Successfully copied via fallback method')
+        setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+        setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
+      } else {
+        console.log('📋 Fallback copy method also failed')
+        setCopyStatus({show: true, success: false, message: 'Copy failed. Please select and copy the JSON manually.'})
+        setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
       }
-    } else {
-      console.log('📋 No JSON code block found in content')
-      alert('No JSON workflow found to copy')
+      
+      } catch (e) {
+      console.log('📋 JSON validation failed:', e)
+      setCopyStatus({show: true, success: false, message: 'Invalid JSON format - cannot copy'})
+      setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
     }
   }
 
@@ -380,6 +405,13 @@ export default function ChatPage() {
   type FlowStep = 'chat' | 'process_editing' | 'automation_viewing' | 'workflow_generated'
   const [currentStep, setCurrentStep] = useState<FlowStep>('chat')
   const [showExtractButton, setShowExtractButton] = useState(false)
+  
+  // Copy status state for better UX
+  const [copyStatus, setCopyStatus] = useState<{show: boolean, success: boolean, message: string}>({
+    show: false,
+    success: false,
+    message: ''
+  })
 
 
   // Function to copy Mermaid to clipboard
@@ -1181,16 +1213,16 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
             n8n Workflow Assistant
           </p>
-          {messages.length > 0 && (
-            <button
+              {messages.length > 0 && (
+                <button
               onClick={resetChat}
-              style={{
-                backgroundColor: 'transparent',
+                  style={{
+                    backgroundColor: 'transparent',
                 border: '1px solid #ddd',
-                borderRadius: '6px',
+                    borderRadius: '6px',
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
-                cursor: 'pointer',
+                    cursor: 'pointer',
                 color: '#666',
                 display: 'flex',
                 alignItems: 'center',
@@ -1207,7 +1239,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
               }}
             >
               🔄 Reset Chat
-            </button>
+                </button>
           )}
         </div>
       </div>
@@ -1576,6 +1608,48 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           </button>
         </div>
       </div>
+      
+      {/* Copy Status Notification */}
+      {copyStatus.show && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          backgroundColor: copyStatus.success ? '#d4edda' : '#f8d7da',
+          color: copyStatus.success ? '#155724' : '#721c24',
+          border: `1px solid ${copyStatus.success ? '#c3e6cb' : '#f5c6cb'}`,
+          borderRadius: '8px',
+          padding: '12px 16px',
+          fontSize: '14px',
+          fontWeight: '500',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 1000,
+          animation: 'slideIn 0.3s ease-out',
+          maxWidth: '350px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ fontSize: '16px' }}>
+            {copyStatus.success ? '✅' : '❌'}
+          </span>
+          {copyStatus.message}
+        </div>
+      )}
+      
+      {/* Add CSS animation for the notification */}
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   )
 }
