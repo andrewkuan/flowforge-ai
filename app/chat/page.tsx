@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { StorageService } from '@/lib/storage'
+import { ChatMessage as StoredChatMessage } from '@/lib/database'
+import SessionHistory from '@/components/SessionHistory'
 
 // Component to format AI messages with better structure
 function FormattedMessage({ content }: { content: string }) {
@@ -224,6 +227,48 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Initialize session on component mount
+  useEffect(() => {
+    const initializeSession = async () => {
+      try {
+        const { sessionId, messages: storedMessages } = await StorageService.initializeSession()
+        
+        if (storedMessages.length > 0) {
+          // Convert stored messages to component format
+          const formattedMessages = storedMessages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+          setMessages(formattedMessages)
+        }
+        
+        setCurrentSessionId(sessionId)
+        setIsInitialized(true)
+      } catch (error) {
+        console.error('Failed to initialize session:', error)
+        setIsInitialized(true) // Continue even if initialization fails
+      }
+    }
+
+    initializeSession()
+  }, [])
+
+  // Auto-save workflow when JSON is detected in AI response
+  const detectAndSaveWorkflow = async (content: string, sessionId: number) => {
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+      try {
+        const jsonContent = jsonMatch[1].trim()
+        JSON.parse(jsonContent) // Validate JSON
+        await StorageService.saveWorkflow(sessionId, jsonContent)
+      } catch (error) {
+        console.error('Failed to save workflow:', error)
+      }
+    }
+  }
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -232,6 +277,18 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
+
+    // Auto-save user message and handle session creation
+    let sessionId = currentSessionId
+    try {
+      if (!sessionId) {
+        sessionId = await StorageService.createNewSession(input)
+        setCurrentSessionId(sessionId)
+      }
+      await StorageService.autoSaveMessage('user', input)
+    } catch (error) {
+      console.error('Failed to save user message:', error)
+    }
 
     try {
       const response = await fetch('/api/chat', {
@@ -268,6 +325,16 @@ export default function ChatPage() {
               const data = line.slice(6)
               if (data === '[DONE]') {
                 setIsLoading(false)
+                
+                // Auto-save complete AI response
+                if (sessionId && aiContent) {
+                  try {
+                    await StorageService.autoSaveMessage('assistant', aiContent)
+                    await detectAndSaveWorkflow(aiContent, sessionId)
+                  } catch (error) {
+                    console.error('Failed to save assistant message:', error)
+                  }
+                }
                 return
               }
               
@@ -292,13 +359,49 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error('Error sending message:', error)
+      const errorMessage = 'Sorry, I encountered an error. Please make sure your Anthropic API key is configured in .env.local and try again.'
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: 'Sorry, I encountered an error. Please make sure your Anthropic API key is configured in .env.local and try again.' 
+        content: errorMessage
       }])
+      
+      // Save error message too
+      if (sessionId) {
+        try {
+          await StorageService.autoSaveMessage('assistant', errorMessage)
+        } catch (saveError) {
+          console.error('Failed to save error message:', saveError)
+        }
+      }
     }
     
     setIsLoading(false)
+  }
+
+  // Start new session function
+  const startNewSession = async () => {
+    try {
+      const newSessionId = await StorageService.startNewSession()
+      setCurrentSessionId(newSessionId)
+      setMessages([])
+    } catch (error) {
+      console.error('Failed to start new session:', error)
+    }
+  }
+
+  // Load existing session
+  const loadSession = async (sessionId: number) => {
+    try {
+      const messages = await StorageService.loadSession(sessionId)
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+      setMessages(formattedMessages)
+      setCurrentSessionId(sessionId)
+    } catch (error) {
+      console.error('Failed to load session:', error)
+    }
   }
 
   return (
@@ -327,9 +430,36 @@ export default function ChatPage() {
             FlowForge AI
           </h1>
         </Link>
-        <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
-          n8n Workflow Assistant
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
+            n8n Workflow Assistant
+          </p>
+          {isInitialized && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <SessionHistory 
+                currentSessionId={currentSessionId}
+                onSessionSelect={loadSession}
+                onNewSession={startNewSession}
+              />
+              {messages.length > 0 && (
+                <button
+                  onClick={startNewSession}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    padding: '0.25rem 0.75rem',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    color: '#666'
+                  }}
+                >
+                  New Session
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -340,7 +470,11 @@ export default function ChatPage() {
         margin: '0 auto',
         width: '100%'
       }}>
-        {messages.length === 0 ? (
+        {!isInitialized ? (
+          <div style={{ textAlign: 'center', marginTop: '4rem' }}>
+            <p style={{ color: '#666' }}>Loading...</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div style={{ textAlign: 'center', marginTop: '4rem' }}>
             <h2 style={{ color: 'black', marginBottom: '1rem' }}>
               Let's create your n8n workflow
