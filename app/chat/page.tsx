@@ -471,96 +471,184 @@ export default function ChatPage() {
 
   // Function to detect if AI response contains automation suggestions
   const detectAutomationSuggestions = (content: string): boolean => {
-    const automationIndicators = [
+    const lowerContent = content.toLowerCase()
+    
+    // Primary indicators
+    const strongIndicators = [
       'automation suggestions',
       'automate using n8n',
-      'n8n nodes',
       'steps should be automated',
       'automation opportunities',
-      'automating',
-      'should automate',
-      'can be automated',
       'good candidates for automation',
-      'http request node',
-      'email node',
-      'schedule trigger'
+      'can be automated',
+      'should automate'
     ]
     
-    const lowerContent = content.toLowerCase()
-    const hasIndicator = automationIndicators.some(indicator => lowerContent.includes(indicator))
+    // Secondary indicators
+    const secondaryIndicators = [
+      'n8n node',
+      'http request node',
+      'email node', 
+      'schedule trigger',
+      'webhook',
+      'trigger',
+      'automating',
+      'automate',
+      'workflow'
+    ]
     
-    // Also check if content has multiple automation-related numbered points
+    // Check for strong indicators
+    const hasStrongIndicator = strongIndicators.some(indicator => lowerContent.includes(indicator))
+    
+    // Check for context clues that this is automation-related
+    const isAutomationContext = (
+      lowerContent.includes('analyze') && lowerContent.includes('process') && 
+      (lowerContent.includes('automat') || lowerContent.includes('n8n'))
+    )
+    
+    // Count automation-related numbered items
     const lines = content.split('\n')
     let automationLines = 0
+    let numberedLines = 0
+    
     for (const line of lines) {
-      if (line.match(/^\d+\./) && line.toLowerCase().includes('automat')) {
-        automationLines++
+      const trimmedLine = line.trim()
+      if (trimmedLine.match(/^\d+\./)) {
+        numberedLines++
+        if (trimmedLine.toLowerCase().includes('automat') || 
+            trimmedLine.toLowerCase().includes('n8n') ||
+            secondaryIndicators.some(indicator => trimmedLine.toLowerCase().includes(indicator))) {
+          automationLines++
+        }
       }
     }
     
-    console.log('🔍 Automation Detection:', { hasIndicator, automationLines, content: content.substring(0, 200) + '...' })
-    return hasIndicator || automationLines >= 2
+    // More flexible detection logic
+    const isAutomationResponse = (
+      hasStrongIndicator || 
+      isAutomationContext ||
+      (automationLines >= 2) ||
+      (numberedLines >= 3 && lowerContent.includes('automat')) ||
+      (numberedLines >= 4 && secondaryIndicators.some(indicator => lowerContent.includes(indicator)))
+    )
+    
+    console.log('🔍 Enhanced Automation Detection:', { 
+      hasStrongIndicator, 
+      isAutomationContext,
+      automationLines, 
+      numberedLines,
+      isAutomationResponse,
+      contentPreview: content.substring(0, 300) + '...',
+      fullContentLength: content.length
+    })
+    
+    // If detection fails, log the full content for debugging
+    if (!isAutomationResponse && content.length > 100) {
+      console.log('❌ Detection Failed - Full AI Response:', content)
+    }
+    
+    return isAutomationResponse
   }
 
   // Function to parse automation suggestions from AI response
   const parseAutomationSuggestions = (content: string): string[] => {
     const suggestions: string[] = []
-    
-    // Look for numbered list patterns in automation suggestions
     const lines = content.split('\n')
-    let inSuggestionSection = false
+    
+    // Multiple parsing strategies
+    
+    // Strategy 1: Look for clear automation section
+    let inAutomationSection = false
     let foundAutomationHeader = false
     
-    for (const line of lines) {
+    // Strategy 2: Collect all numbered items that seem automation-related
+    const potentialSuggestions: string[] = []
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
       const trimmedLine = line.trim()
+      const lowerLine = trimmedLine.toLowerCase()
       
       // Check for automation section headers
-      if (trimmedLine.toLowerCase().includes('automation suggestions') ||
-          trimmedLine.toLowerCase().includes('steps should be automated') ||
-          trimmedLine.toLowerCase().includes('automation opportunities') ||
-          trimmedLine.toLowerCase().includes('automate these steps')) {
-        inSuggestionSection = true
+      if (lowerLine.includes('automation') || 
+          lowerLine.includes('automate') ||
+          lowerLine.includes('n8n') ||
+          lowerLine.includes('steps should be automated') ||
+          lowerLine.includes('opportunities')) {
+        inAutomationSection = true
         foundAutomationHeader = true
         continue
       }
       
-      // Also check if we're entering any automation-related section
-      if (!foundAutomationHeader && 
-          (trimmedLine.toLowerCase().includes('automation') || 
-           trimmedLine.toLowerCase().includes('n8n') ||
-           trimmedLine.toLowerCase().includes('automate'))) {
-        inSuggestionSection = true
-      }
-      
-      // Parse numbered suggestions (more flexible matching)
-      if (inSuggestionSection || trimmedLine.toLowerCase().includes('automat')) {
-        const match = trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
-        if (match && match[2]) {
-          const suggestion = match[2].trim()
-          // Only add if it seems automation-related
-          if (suggestion.toLowerCase().includes('automat') || 
-              suggestion.toLowerCase().includes('n8n') ||
-              suggestion.toLowerCase().includes('node') ||
-              suggestions.length === 0) { // Include first numbered item in automation sections
-            suggestions.push(suggestion)
-          }
+      // Parse numbered items
+      const numberMatch = trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
+      if (numberMatch && numberMatch[2]) {
+        const suggestion = numberMatch[2].trim()
+        const suggestionLower = suggestion.toLowerCase()
+        
+        // Strategy 1: If we're in an automation section, add everything
+        if (inAutomationSection) {
+          suggestions.push(suggestion)
+        }
+        
+        // Strategy 2: Add if content seems automation-related
+        if (suggestionLower.includes('automat') || 
+            suggestionLower.includes('n8n') ||
+            suggestionLower.includes('node') ||
+            suggestionLower.includes('trigger') ||
+            suggestionLower.includes('webhook') ||
+            suggestionLower.includes('api') ||
+            suggestionLower.includes('email') ||
+            suggestionLower.includes('schedule') ||
+            suggestionLower.includes('integrate') ||
+            suggestionLower.includes('workflow')) {
+          potentialSuggestions.push(suggestion)
         }
       }
       
-      // Stop if we hit a non-automation section
-      if (inSuggestionSection && trimmedLine.length > 0 && 
+      // Stop if we hit a clear non-automation section
+      if (inAutomationSection && trimmedLine.length > 0 && 
           !trimmedLine.match(/^\d+\./) && 
-          !trimmedLine.toLowerCase().includes('automat') &&
-          !trimmedLine.toLowerCase().includes('n8n')) {
-        // Keep going if we have a clear automation header
+          !trimmedLine.match(/^[-*]/) &&
+          !lowerLine.includes('automat') &&
+          !lowerLine.includes('n8n') &&
+          lowerLine.length > 10) {
         if (!foundAutomationHeader) {
-          inSuggestionSection = false
+          inAutomationSection = false
         }
       }
     }
     
-    console.log('📝 Parsed Automation Suggestions:', { count: suggestions.length, suggestions })
-    return suggestions
+    // Use the best strategy result
+    const finalSuggestions = suggestions.length > 0 ? suggestions : potentialSuggestions
+    
+    // Strategy 3: If we still don't have suggestions but content seems automation-related
+    if (finalSuggestions.length === 0) {
+      const lowerContent = content.toLowerCase()
+      if ((lowerContent.includes('automat') || lowerContent.includes('n8n')) && 
+          lowerContent.includes('suggest')) {
+        // Extract any numbered or bulleted lists
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          const listMatch = trimmedLine.match(/^(?:\d+\.|\*|\-)\s*(.+)$/)
+          if (listMatch && listMatch[1] && listMatch[1].length > 10) {
+            finalSuggestions.push(listMatch[1].trim())
+          }
+        }
+      }
+    }
+    
+    console.log('📝 Enhanced Parsing Result:', { 
+      strategiesUsed: {
+        sectionBased: suggestions.length,
+        contentBased: potentialSuggestions.length,
+        final: finalSuggestions.length
+      },
+      suggestions: finalSuggestions,
+      contentPreview: content.substring(0, 500) + '...'
+    })
+    
+    return finalSuggestions.slice(0, 10) // Limit to 10 suggestions max
   }
 
   // Handle process steps changes
@@ -912,6 +1000,24 @@ export default function ChatPage() {
                   }
                 } else {
                   console.log('🔍 No automation suggestions detected in AI response')
+                  
+                  // Fallback: Check if user recently requested automation (workflowState is process_confirmed)
+                  // and AI response has numbered lists - might be automation suggestions in different format
+                  if (workflowState === 'process_confirmed' && aiContent.includes('automat')) {
+                    console.log('🔄 Fallback: Forcing automation parsing since user requested it')
+                    const suggestions = parseAutomationSuggestions(aiContent)
+                    if (suggestions.length > 0) {
+                      console.log('✅ Fallback parsing successful:', suggestions)
+                      setAutomationSuggestions(suggestions)
+                      setShowAutomationSuggestions(true)
+                      setWorkflowState('automation_generated')
+                      
+                      if (sessionId) {
+                        StorageService.saveAutomationSuggestions(sessionId, suggestions).catch(console.error)
+                        StorageService.updateWorkflowState(sessionId, 'automation_generated').catch(console.error)
+                      }
+                    }
+                  }
                 }
                 
                 // Auto-save complete AI response
