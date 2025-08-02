@@ -68,19 +68,43 @@ function FormattedMessage({
   // Function to copy JSON to clipboard with improved error handling
   const copyJSONToClipboard = async (text: string) => {
     console.log('📋 Copy button clicked, text length:', text.length)
+    console.log('📋 First 200 chars:', text.substring(0, 200))
+    console.log('📋 Last 200 chars:', text.substring(text.length - 200))
     
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
     console.log('📋 JSON match found:', !!jsonMatch)
     
     if (!jsonMatch) {
       console.log('📋 No JSON code block found in content')
+      console.log('📋 Trying alternative patterns...')
+      
+      // Try alternative patterns
+      const altPattern1 = text.match(/```json([\s\S]*?)```/)
+      const altPattern2 = text.match(/json\s*([\s\S]*?)$/)
+      console.log('📋 Alt pattern 1 (no spaces):', !!altPattern1)
+      console.log('📋 Alt pattern 2 (json to end):', !!altPattern2)
+      
       setCopyStatus({show: true, success: false, message: 'No JSON workflow found to copy'})
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
       return
     }
 
-      const jsonContent = jsonMatch[1].trim()
+    let jsonContent = jsonMatch[1].trim()
     console.log('📋 Extracted JSON content length:', jsonContent.length)
+    
+    // If no match with original pattern, try direct extraction like display logic
+    if (!jsonContent && text.startsWith('```json')) {
+      console.log('📋 Using direct extraction method')
+      jsonContent = text.replace(/```json\s*/, '').replace(/\s*```$/, '').trim()
+      console.log('📋 Direct extraction result length:', jsonContent.length)
+    }
+    
+    if (!jsonContent) {
+      console.log('📋 Still no JSON content after extraction attempts')
+      setCopyStatus({show: true, success: false, message: 'Could not extract JSON content'})
+      setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
+      return
+    }
     
       try {
         // Validate JSON
