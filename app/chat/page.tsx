@@ -350,6 +350,11 @@ export default function ChatPage() {
   const [automationSuggestions, setAutomationSuggestions] = useState<string[]>([])
   const [showAutomationSuggestions, setShowAutomationSuggestions] = useState(false)
   const [workflowState, setWorkflowState] = useState<WorkflowState>('initial')
+  
+  // New simplified state for explicit user control
+  type FlowStep = 'chat' | 'process_editing' | 'automation_viewing' | 'workflow_generated'
+  const [currentStep, setCurrentStep] = useState<FlowStep>('chat')
+  const [showExtractButton, setShowExtractButton] = useState(false)
 
 
   // Function to copy Mermaid to clipboard
@@ -676,6 +681,143 @@ export default function ChatPage() {
     return finalSuggestions.slice(0, 10) // Limit to 10 suggestions max
   }
 
+  // Handle extracting process steps from AI response
+  const handleExtractProcessSteps = () => {
+    console.log('🔍 User clicked Extract Process Steps')
+    setShowExtractButton(false)
+    
+    // Get the latest AI message
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && lastMessage.role === 'assistant') {
+      const steps = parseProcessSteps(lastMessage.content)
+      console.log('📝 Extracted steps:', steps)
+      
+      if (steps.length > 0) {
+        setProcessSteps(steps)
+        setShowProcessPanel(true)
+        setCurrentStep('process_editing')
+        
+        // Save to database
+        if (currentSessionId) {
+          StorageService.saveProcessSteps(currentSessionId, steps).catch(console.error)
+          StorageService.updateWorkflowState(currentSessionId, 'process_generated').catch(console.error)
+        }
+      } else {
+        // If no steps found, create default ones
+        const defaultSteps: ProcessStep[] = [
+          { id: '1', content: 'Review the process described in the AI response' },
+          { id: '2', content: 'Edit and refine the process steps' },
+          { id: '3', content: 'Add any missing steps' }
+        ]
+        setProcessSteps(defaultSteps)
+        setShowProcessPanel(true)
+        setCurrentStep('process_editing')
+      }
+    }
+  }
+
+  // Handle getting automation ideas
+  const handleGetAutomationIdeas = () => {
+    console.log('🤖 User clicked Get Automation Ideas')
+    setShowProcessPanel(false)
+    
+    const processText = processSteps.map((step, index) => `${index + 1}. ${step.content}`).join('\n')
+    const automationMessage = `Perfect! Here's my refined process:\n\n${processText}\n\nNow please suggest automation opportunities for this process using n8n.\n\n**Automation Suggestions:**\n\nPlease provide specific automation suggestions with n8n nodes and explanations.`
+    
+    setMessages(prev => [...prev, { role: 'user', content: automationMessage }])
+    setInput('')
+    setIsLoading(true)
+    setCurrentStep('chat')
+
+    // Send to AI (simplified version)
+    if (currentSessionId) {
+      StorageService.autoSaveMessage('user', automationMessage).catch(console.error)
+    }
+    
+    // Send to AI using existing fetch logic
+    const updatedMessages = [...messages, { role: 'user', content: automationMessage }]
+    
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: updatedMessages }),
+    }).then(async response => {
+      if (!response.ok) throw new Error('Failed to get response')
+      
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response body')
+
+      let aiContent = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = new TextDecoder().decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') {
+              setIsLoading(false)
+              // Show save button after automation response
+              setShowExtractButton(true)
+              console.log('🤖 Automation response complete, showing save button')
+            } else {
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.content) {
+                  aiContent += parsed.content
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    if (newMessages[newMessages.length - 1]?.role === 'assistant') {
+                      newMessages[newMessages.length - 1].content = aiContent
+                    } else {
+                      newMessages.push({ role: 'assistant', content: aiContent })
+                    }
+                    return newMessages
+                  })
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+      }
+    }).catch(error => {
+      console.error('Error:', error)
+      setIsLoading(false)
+    })
+  }
+
+  // Handle saving automation ideas
+  const handleSaveAutomationIdeas = () => {
+    console.log('💾 User clicked Save Automation Ideas')
+    setShowExtractButton(false)
+    
+    // Get the latest AI message
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && lastMessage.role === 'assistant') {
+      const suggestions = parseAutomationSuggestions(lastMessage.content)
+      console.log('💾 Saving suggestions:', suggestions)
+      
+      if (suggestions.length > 0) {
+        setAutomationSuggestions(suggestions)
+        setShowAutomationSuggestions(true)
+        setCurrentStep('automation_viewing')
+        
+        // Save to database
+        if (currentSessionId) {
+          StorageService.saveAutomationSuggestions(currentSessionId, suggestions)
+            .then(() => console.log('✅ Saved successfully'))
+            .catch(console.error)
+          StorageService.updateWorkflowState(currentSessionId, 'automation_generated').catch(console.error)
+        }
+      }
+    }
+  }
+
   // Handle process steps changes
   const handleProcessStepsChange = (steps: ProcessStep[]) => {
     setProcessSteps(steps)
@@ -987,88 +1129,12 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
               if (data === '[DONE]') {
                 setIsLoading(false)
                 
-                console.log('🎯 STREAM COMPLETE - Final aiContent analysis:', {
-                  contentLength: aiContent.length,
-                  fullContent: aiContent,
-                  sessionId,
-                  workflowState
-                })
+                console.log('✅ SIMPLE: AI response complete, showing extract button')
                 
-                // Check if this response contains automation suggestions FIRST (higher priority)
-                const hasAutomationHeader = aiContent.includes('**Automation Suggestions:**')
-                const looksLikeAutomation = aiContent.toLowerCase().includes('automation') && 
-                                           aiContent.toLowerCase().includes('n8n') &&
-                                           aiContent.includes('1.**')
-                
-                console.log('🔍 Automation Pre-Check:', {
-                  hasAutomationHeader,
-                  looksLikeAutomation,
-                  contentPreview: aiContent.substring(0, 200) + '...',
-                  sessionId
-                })
-                
-                if (hasAutomationHeader || looksLikeAutomation) {
-                  console.log('✅ AUTOMATION CONTENT DETECTED - Processing...')
-                  
-                  // Force parsing since we detected automation content
-                  const suggestions = parseAutomationSuggestions(aiContent)
-                  console.log('🤖 Forced Automation Parsing Result:', { 
-                    suggestionsCount: suggestions.length, 
-                    suggestions,
-                    sessionId 
-                  })
-                  
-                  if (suggestions.length > 0) {
-                    setAutomationSuggestions(suggestions)
-                    setShowAutomationSuggestions(true)
-                    setWorkflowState('automation_generated')
-                    
-                    // Save automation suggestions and workflow state to database
-                    if (sessionId) {
-                      console.log('💾 FORCED: Saving automation suggestions to database:', {
-                        sessionId,
-                        suggestionsCount: suggestions.length,
-                        suggestions,
-                        previousWorkflowState: workflowState
-                      })
-                      
-                      StorageService.saveAutomationSuggestions(sessionId, suggestions)
-                        .then(() => {
-                          console.log('✅ FORCED: Automation suggestions saved successfully')
-                        })
-                        .catch((error) => {
-                          console.error('❌ FORCED: Failed to save automation suggestions:', error)
-                        })
-                      
-                      StorageService.updateWorkflowState(sessionId, 'automation_generated')
-                        .then(() => {
-                          console.log('✅ FORCED: Workflow state updated to automation_generated')
-                        })
-                        .catch((error) => {
-                          console.error('❌ FORCED: Failed to update workflow state:', error)
-                        })
-                    }
-                  } else {
-                    console.log('⚠️ FORCED: No automation suggestions extracted despite detection')
-                  }
-                } else {
-                  console.log('🔍 No automation pre-check match - checking for process suggestions')
-                  
-                  // Check if this response contains a process suggestion
-                  if (detectProcessSuggestion(aiContent)) {
-                    const steps = parseProcessSteps(aiContent)
-                    if (steps.length > 0) {
-                      setProcessSteps(steps)
-                      setShowProcessPanel(true)
-                      setWorkflowState('process_generated')
-                      
-                      // Save process steps and workflow state to database
-                      if (sessionId) {
-                        StorageService.saveProcessSteps(sessionId, steps).catch(console.error)
-                        StorageService.updateWorkflowState(sessionId, 'process_generated').catch(console.error)
-                      }
-                    }
-                  }
+                // Simple approach: After any AI response, show extract button
+                if (currentStep === 'chat' && aiContent.length > 100) {
+                  setShowExtractButton(true)
+                  console.log('📝 Extract button now visible for user')
                 }
                 
                 // Auto-save complete AI response
@@ -1138,6 +1204,8 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
       setWorkflowState('initial')
       setShowProcessPanel(false)
       setShowAutomationSuggestions(false)
+      setCurrentStep('chat')
+      setShowExtractButton(false)
     } catch (error) {
       console.error('Failed to start new session:', error)
     }
@@ -1328,6 +1396,70 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
               </div>
             ))}
             
+            {/* Extract Process Steps Button */}
+            {showExtractButton && currentStep === 'chat' && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                marginTop: '1rem',
+                marginBottom: '1rem' 
+              }}>
+                <button
+                  onClick={handleExtractProcessSteps}
+                  style={{
+                    backgroundColor: '#2563eb',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                >
+                  📝 Extract Process Steps
+                </button>
+              </div>
+            )}
+            
+            {/* Save Automation Ideas Button */}
+            {showExtractButton && currentStep === 'chat' && messages.length > 0 && 
+             messages[messages.length - 1]?.content?.includes('**Automation Suggestions:**') && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                marginTop: '1rem',
+                marginBottom: '1rem' 
+              }}>
+                <button
+                  onClick={handleSaveAutomationIdeas}
+                  style={{
+                    backgroundColor: '#059669',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                >
+                  💾 Save Automation Ideas
+                </button>
+              </div>
+            )}
 
 
 
@@ -1470,7 +1602,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
         <EditableProcessPanel
           processSteps={processSteps}
           onStepsChange={handleProcessStepsChange}
-          onConfirm={handleProcessConfirm}
+          onConfirm={handleGetAutomationIdeas}
           isVisible={showProcessPanel}
           title="Your Current Process"
           workflowState={workflowState}

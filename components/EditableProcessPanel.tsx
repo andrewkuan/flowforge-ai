@@ -305,13 +305,13 @@ export default function EditableProcessPanel({
         + Add Step
       </button>
 
-      {/* Confirm Button */}
+      {/* Get Automation Ideas Button */}
       <button
         onClick={onConfirm}
         style={{
           width: '100%',
           padding: '0.75rem 1rem',
-          backgroundColor: workflowState === 'automation_generated' ? '#f57c00' : '#1a73e8',
+          backgroundColor: '#059669',
           color: 'white',
           border: 'none',
           borderRadius: '8px',
@@ -321,16 +321,13 @@ export default function EditableProcessPanel({
           transition: 'background-color 0.2s'
         }}
         onMouseOver={(e) => {
-          e.currentTarget.style.backgroundColor = workflowState === 'automation_generated' ? '#ef6c00' : '#1557b0'
+          e.currentTarget.style.backgroundColor = '#047857'
         }}
         onMouseOut={(e) => {
-          e.currentTarget.style.backgroundColor = workflowState === 'automation_generated' ? '#f57c00' : '#1a73e8'
+          e.currentTarget.style.backgroundColor = '#059669'
         }}
       >
-        {workflowState === 'automation_generated' 
-          ? '🤖 View Automation Suggestions' 
-          : '✅ Process is Accurate - Suggest Automation'
-        }
+        🤖 Get Automation Ideas
       </button>
     </div>
   )
