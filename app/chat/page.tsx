@@ -987,34 +987,32 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
               if (data === '[DONE]') {
                 setIsLoading(false)
                 
-                // Check if this response contains a process suggestion
-                if (detectProcessSuggestion(aiContent)) {
-                  const steps = parseProcessSteps(aiContent)
-                  if (steps.length > 0) {
-                    setProcessSteps(steps)
-                    setShowProcessPanel(true)
-                    setWorkflowState('process_generated')
-                    
-                    // Save process steps and workflow state to database
-                    if (sessionId) {
-                      StorageService.saveProcessSteps(sessionId, steps).catch(console.error)
-                      StorageService.updateWorkflowState(sessionId, 'process_generated').catch(console.error)
-                    }
-                  }
-                }
-                
-                // Check if this response contains automation suggestions
-                console.log('🔍 Checking for automation suggestions in aiContent:', {
+                console.log('🎯 STREAM COMPLETE - Final aiContent analysis:', {
                   contentLength: aiContent.length,
-                  contentPreview: aiContent.substring(0, 500) + '...',
-                  hasAutomationSuggestionsHeader: aiContent.includes('**Automation Suggestions:**'),
+                  fullContent: aiContent,
+                  sessionId,
+                  workflowState
+                })
+                
+                // Check if this response contains automation suggestions FIRST (higher priority)
+                const hasAutomationHeader = aiContent.includes('**Automation Suggestions:**')
+                const looksLikeAutomation = aiContent.toLowerCase().includes('automation') && 
+                                           aiContent.toLowerCase().includes('n8n') &&
+                                           aiContent.includes('1.**')
+                
+                console.log('🔍 Automation Pre-Check:', {
+                  hasAutomationHeader,
+                  looksLikeAutomation,
+                  contentPreview: aiContent.substring(0, 200) + '...',
                   sessionId
                 })
                 
-                if (detectAutomationSuggestions(aiContent)) {
+                if (hasAutomationHeader || looksLikeAutomation) {
+                  console.log('✅ AUTOMATION CONTENT DETECTED - Processing...')
+                  
+                  // Force parsing since we detected automation content
                   const suggestions = parseAutomationSuggestions(aiContent)
-                  console.log('🤖 Automation Detection Result:', { 
-                    detected: true, 
+                  console.log('🤖 Forced Automation Parsing Result:', { 
                     suggestionsCount: suggestions.length, 
                     suggestions,
                     sessionId 
@@ -1027,7 +1025,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
                     
                     // Save automation suggestions and workflow state to database
                     if (sessionId) {
-                      console.log('💾 Saving automation suggestions to database:', {
+                      console.log('💾 FORCED: Saving automation suggestions to database:', {
                         sessionId,
                         suggestionsCount: suggestions.length,
                         suggestions,
@@ -1036,59 +1034,38 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
                       
                       StorageService.saveAutomationSuggestions(sessionId, suggestions)
                         .then(() => {
-                          console.log('✅ Automation suggestions saved successfully')
+                          console.log('✅ FORCED: Automation suggestions saved successfully')
                         })
                         .catch((error) => {
-                          console.error('❌ Failed to save automation suggestions:', error)
+                          console.error('❌ FORCED: Failed to save automation suggestions:', error)
                         })
                       
                       StorageService.updateWorkflowState(sessionId, 'automation_generated')
                         .then(() => {
-                          console.log('✅ Workflow state updated to automation_generated')
+                          console.log('✅ FORCED: Workflow state updated to automation_generated')
                         })
                         .catch((error) => {
-                          console.error('❌ Failed to update workflow state:', error)
+                          console.error('❌ FORCED: Failed to update workflow state:', error)
                         })
                     }
                   } else {
-                    console.log('⚠️ No automation suggestions extracted from AI response')
+                    console.log('⚠️ FORCED: No automation suggestions extracted despite detection')
                   }
                 } else {
-                  console.log('🔍 No automation suggestions detected in AI response')
+                  console.log('🔍 No automation pre-check match - checking for process suggestions')
                   
-                  // Fallback: Check if user recently requested automation (workflowState is process_confirmed)
-                  // and AI response has numbered lists - might be automation suggestions in different format
-                  if (workflowState === 'process_confirmed' && aiContent.includes('automat')) {
-                    console.log('🔄 Fallback: Forcing automation parsing since user requested it')
-                    const suggestions = parseAutomationSuggestions(aiContent)
-                    if (suggestions.length > 0) {
-                      console.log('✅ Fallback parsing successful:', {
-                        sessionId,
-                        suggestionsCount: suggestions.length,
-                        suggestions,
-                        previousWorkflowState: workflowState
-                      })
-                      setAutomationSuggestions(suggestions)
-                      setShowAutomationSuggestions(true)
-                      setWorkflowState('automation_generated')
+                  // Check if this response contains a process suggestion
+                  if (detectProcessSuggestion(aiContent)) {
+                    const steps = parseProcessSteps(aiContent)
+                    if (steps.length > 0) {
+                      setProcessSteps(steps)
+                      setShowProcessPanel(true)
+                      setWorkflowState('process_generated')
                       
+                      // Save process steps and workflow state to database
                       if (sessionId) {
-                        console.log('💾 Fallback: Saving automation suggestions to database')
-                        StorageService.saveAutomationSuggestions(sessionId, suggestions)
-                          .then(() => {
-                            console.log('✅ Fallback: Automation suggestions saved successfully')
-                          })
-                          .catch((error) => {
-                            console.error('❌ Fallback: Failed to save automation suggestions:', error)
-                          })
-                        
-                        StorageService.updateWorkflowState(sessionId, 'automation_generated')
-                          .then(() => {
-                            console.log('✅ Fallback: Workflow state updated to automation_generated')
-                          })
-                          .catch((error) => {
-                            console.error('❌ Fallback: Failed to update workflow state:', error)
-                          })
+                        StorageService.saveProcessSteps(sessionId, steps).catch(console.error)
+                        StorageService.updateWorkflowState(sessionId, 'process_generated').catch(console.error)
                       }
                     }
                   }
