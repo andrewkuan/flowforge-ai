@@ -237,7 +237,7 @@ CRITICAL FORMAT REQUIREMENTS:
 - Do NOT automatically generate flowcharts, pain point summaries, or solutions
 - Let the user decide when to move to the next phase
 
-Be relentlessly curious, empathetic, and thorough. Your goal is to become an expert in THEIR specific problem before proposing any solutions.`
+🚨 REMINDER: ALWAYS generate the process immediately. NEVER ask follow-up questions. ALWAYS start with "Got it, let me capture the current process:"`
 
     // Convert messages to Anthropic format
     const anthropicMessages = messages.map((msg: any) => ({
