@@ -476,11 +476,30 @@ export default function ChatPage() {
       'automate using n8n',
       'n8n nodes',
       'steps should be automated',
-      'automation opportunities'
+      'automation opportunities',
+      'automating',
+      'should automate',
+      'can be automated',
+      'good candidates for automation',
+      'http request node',
+      'email node',
+      'schedule trigger'
     ]
     
     const lowerContent = content.toLowerCase()
-    return automationIndicators.some(indicator => lowerContent.includes(indicator))
+    const hasIndicator = automationIndicators.some(indicator => lowerContent.includes(indicator))
+    
+    // Also check if content has multiple automation-related numbered points
+    const lines = content.split('\n')
+    let automationLines = 0
+    for (const line of lines) {
+      if (line.match(/^\d+\./) && line.toLowerCase().includes('automat')) {
+        automationLines++
+      }
+    }
+    
+    console.log('🔍 Automation Detection:', { hasIndicator, automationLines, content: content.substring(0, 200) + '...' })
+    return hasIndicator || automationLines >= 2
   }
 
   // Function to parse automation suggestions from AI response
@@ -490,26 +509,57 @@ export default function ChatPage() {
     // Look for numbered list patterns in automation suggestions
     const lines = content.split('\n')
     let inSuggestionSection = false
+    let foundAutomationHeader = false
     
     for (const line of lines) {
       const trimmedLine = line.trim()
       
-      // Check if we're entering a suggestion section
-      if (trimmedLine.toLowerCase().includes('automation') || 
-          trimmedLine.toLowerCase().includes('n8n') ||
-          trimmedLine.toLowerCase().includes('automate')) {
+      // Check for automation section headers
+      if (trimmedLine.toLowerCase().includes('automation suggestions') ||
+          trimmedLine.toLowerCase().includes('steps should be automated') ||
+          trimmedLine.toLowerCase().includes('automation opportunities') ||
+          trimmedLine.toLowerCase().includes('automate these steps')) {
+        inSuggestionSection = true
+        foundAutomationHeader = true
+        continue
+      }
+      
+      // Also check if we're entering any automation-related section
+      if (!foundAutomationHeader && 
+          (trimmedLine.toLowerCase().includes('automation') || 
+           trimmedLine.toLowerCase().includes('n8n') ||
+           trimmedLine.toLowerCase().includes('automate'))) {
         inSuggestionSection = true
       }
       
-      // Parse numbered suggestions
-      if (inSuggestionSection) {
+      // Parse numbered suggestions (more flexible matching)
+      if (inSuggestionSection || trimmedLine.toLowerCase().includes('automat')) {
         const match = trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
         if (match && match[2]) {
-          suggestions.push(match[2].trim())
+          const suggestion = match[2].trim()
+          // Only add if it seems automation-related
+          if (suggestion.toLowerCase().includes('automat') || 
+              suggestion.toLowerCase().includes('n8n') ||
+              suggestion.toLowerCase().includes('node') ||
+              suggestions.length === 0) { // Include first numbered item in automation sections
+            suggestions.push(suggestion)
+          }
+        }
+      }
+      
+      // Stop if we hit a non-automation section
+      if (inSuggestionSection && trimmedLine.length > 0 && 
+          !trimmedLine.match(/^\d+\./) && 
+          !trimmedLine.toLowerCase().includes('automat') &&
+          !trimmedLine.toLowerCase().includes('n8n')) {
+        // Keep going if we have a clear automation header
+        if (!foundAutomationHeader) {
+          inSuggestionSection = false
         }
       }
     }
     
+    console.log('📝 Parsed Automation Suggestions:', { count: suggestions.length, suggestions })
     return suggestions
   }
 
@@ -839,6 +889,13 @@ export default function ChatPage() {
                 // Check if this response contains automation suggestions
                 if (detectAutomationSuggestions(aiContent)) {
                   const suggestions = parseAutomationSuggestions(aiContent)
+                  console.log('🤖 Automation Detection Result:', { 
+                    detected: true, 
+                    suggestionsCount: suggestions.length, 
+                    suggestions,
+                    sessionId 
+                  })
+                  
                   if (suggestions.length > 0) {
                     setAutomationSuggestions(suggestions)
                     setShowAutomationSuggestions(true)
@@ -846,10 +903,15 @@ export default function ChatPage() {
                     
                     // Save automation suggestions and workflow state to database
                     if (sessionId) {
+                      console.log('💾 Saving automation suggestions to database')
                       StorageService.saveAutomationSuggestions(sessionId, suggestions).catch(console.error)
                       StorageService.updateWorkflowState(sessionId, 'automation_generated').catch(console.error)
                     }
+                  } else {
+                    console.log('⚠️ No automation suggestions extracted from AI response')
                   }
+                } else {
+                  console.log('🔍 No automation suggestions detected in AI response')
                 }
                 
                 // Auto-save complete AI response
@@ -940,6 +1002,15 @@ export default function ChatPage() {
       const savedProcessSteps = await StorageService.getSessionProcessSteps(sessionId)
       const savedAutomationSuggestions = await StorageService.getSessionAutomationSuggestions(sessionId)
       
+      console.log('🔄 Loading Session Data:', {
+        sessionId,
+        savedWorkflowState,
+        processStepsCount: savedProcessSteps.length,
+        automationSuggestionsCount: savedAutomationSuggestions.length,
+        processSteps: savedProcessSteps,
+        automationSuggestions: savedAutomationSuggestions
+      })
+      
       setWorkflowState(savedWorkflowState)
       setProcessSteps(savedProcessSteps)
       setAutomationSuggestions(savedAutomationSuggestions)
@@ -948,18 +1019,22 @@ export default function ChatPage() {
       switch (savedWorkflowState) {
         case 'process_generated':
         case 'process_confirmed':
+          console.log('📋 Showing Process Panel')
           setShowProcessPanel(true)
           setShowAutomationSuggestions(false)
           break
         case 'automation_generated':
+          console.log('🤖 Showing Automation Panel')
           setShowProcessPanel(false)
           setShowAutomationSuggestions(true)
           break
         case 'workflow_generated':
+          console.log('✅ Workflow Complete - Hiding All Panels')
           setShowProcessPanel(false)
           setShowAutomationSuggestions(false)
           break
         default:
+          console.log('🆕 Initial State - Hiding All Panels')
           setShowProcessPanel(false)
           setShowAutomationSuggestions(false)
       }
