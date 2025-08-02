@@ -168,6 +168,13 @@ When generating n8n workflow JSON, follow these critical requirements:
 - Ensure expressions use correct n8n syntax like "={{ $json.fieldName }}"
 - Always wrap JSON in \`\`\`json code blocks
 
+🚨 CRITICAL JSON REQUIREMENTS:
+- ALWAYS generate COMPLETE JSON - do not truncate or cut off
+- ENSURE proper closing braces and brackets
+- END with a complete ]} structure
+- VALIDATE that all opening brackets/braces have matching closing ones
+- If workflow is complex, simplify but keep it COMPLETE and VALID
+
 CONNECTION EXAMPLE:
 If you have nodes named "Telegram Trigger" and "Google Calendar", the connections should be:
 "connections": {
@@ -241,7 +248,7 @@ Be relentlessly curious, empathetic, and thorough. Your goal is to become an exp
     // Create streaming response
     const stream = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
-      max_tokens: 1000,
+      max_tokens: 4000,  // Increased for complete n8n workflow generation
       system: systemPrompt,
       messages: anthropicMessages,
       stream: true,
