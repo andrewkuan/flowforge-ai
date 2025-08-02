@@ -1036,6 +1036,23 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
 
 
 
+  // Reset chat function to clear all state
+  const resetChat = () => {
+    setMessages([])
+    setInput('')
+    setIsLoading(false)
+    setFlowcharts([])
+    setHasActiveFlowchart(false)
+    setProcessSteps([])
+    setShowProcessPanel(false)
+    setAutomationSuggestions([])
+    setShowAutomationSuggestions(false)
+    setWorkflowState('initial')
+    setCurrentStep('chat')
+    setShowExtractButton(false)
+    console.log('🔄 Chat reset - all state cleared')
+  }
+
   const sendMessage = async () => {
     if (!input.trim()) return
 
@@ -1164,7 +1181,34 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
             n8n Workflow Assistant
           </p>
-
+          {messages.length > 0 && (
+            <button
+              onClick={resetChat}
+              style={{
+                backgroundColor: 'transparent',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                padding: '0.5rem 1rem',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                color: '#666',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = '#f5f5f5'
+                e.currentTarget.style.borderColor = '#999'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.borderColor = '#ddd'
+              }}
+            >
+              🔄 Reset Chat
+            </button>
+          )}
         </div>
       </div>
 
