@@ -16,16 +16,72 @@ export default function ChatPage() {
     setInput('')
     setIsLoading(true)
 
-    // TODO: Connect to Anthropic API
-    // For now, add a placeholder response
-    setTimeout(() => {
-      const aiMessage = { 
-        role: 'assistant' as const, 
-        content: "I'd be happy to help you create an n8n workflow! Can you tell me more about what automation you'd like to build?" 
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage]
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get response')
       }
-      setMessages(prev => [...prev, aiMessage])
-      setIsLoading(false)
-    }, 1000)
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let aiContent = ''
+
+      // Add empty AI message that we'll update as we stream
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') {
+                setIsLoading(false)
+                return
+              }
+              
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.content) {
+                  aiContent += parsed.content
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    if (newMessages[newMessages.length - 1].role === 'assistant') {
+                      newMessages[newMessages.length - 1].content = aiContent
+                    }
+                    return newMessages
+                  })
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please make sure your Anthropic API key is configured in .env.local and try again.' 
+      }])
+    }
+    
+    setIsLoading(false)
   }
 
   return (
