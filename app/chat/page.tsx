@@ -30,12 +30,14 @@ function FormattedMessage({
   content, 
   hideFlowcharts = false, 
   copyMermaidToClipboard, 
-  extractAndDownloadMermaid 
+  extractAndDownloadMermaid,
+  setCopyStatus
 }: { 
   content: string, 
   hideFlowcharts?: boolean,
   copyMermaidToClipboard: (text: string) => void,
-  extractAndDownloadMermaid: (text: string) => void
+  extractAndDownloadMermaid: (text: string) => void,
+  setCopyStatus: (status: {show: boolean, success: boolean, message: string}) => void
 }) {
   
   // Function to extract and download JSON from message content
@@ -1291,6 +1293,7 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
                       hideFlowcharts={hasActiveFlowchart}
                       copyMermaidToClipboard={copyMermaidToClipboard}
                       extractAndDownloadMermaid={extractAndDownloadMermaid}
+                      setCopyStatus={setCopyStatus}
                     />
                   ) : (
                     <div style={{
