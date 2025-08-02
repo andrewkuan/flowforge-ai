@@ -4,50 +4,92 @@
   },
   "nodes": [
     {
-      "id": "gmail-trigger-node",
-      "name": "Gmail Trigger",
-      "type": "n8n-nodes-base.gmailTrigger",
+      "id": "telegram-trigger-node",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1,
       "position": [250, 300],
       "parameters": {
-        "event": "messageReceived",
-        "simple": false,
-        "filters": {}
+        "updates": ["message"]
       },
       "credentials": {
-        "gmailOAuth2": {
+        "telegramApi": {
           "id": "1",
-          "name": "Gmail OAuth2 account"
+          "name": "Telegram Bot API"
         }
       }
     },
     {
-      "id": "gmail-label-node", 
-      "name": "Add Label",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
+      "id": "function-node",
+      "name": "Parse Event Details",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
       "position": [500, 300],
       "parameters": {
-        "resource": "message",
-        "operation": "addLabel",
-        "messageId": "={{ $json.id }}",
-        "labelIds": ["INBOX"],
-        "labelNames": ["new"]
+        "functionCode": "// Extract event details from Telegram message\nconst message = items[0].json.message.text;\nconst chatId = items[0].json.message.chat.id;\n\n// Parse event title, date, time from message\nconst eventMatch = message.match(/create event (.+) on (.+) at (.+)/i);\n\nif (eventMatch) {\n  const [, title, date, time] = eventMatch;\n  return [{\n    json: {\n      title: title.trim(),\n      date: date.trim(),\n      time: time.trim(),\n      chatId: chatId,\n      originalMessage: message\n    }\n  }];\n} else {\n  return [{\n    json: {\n      error: \"Invalid format. Use: create event [title] on [date] at [time]\",\n      chatId: chatId\n    }\n  }];\n}"
+      }
+    },
+    {
+      "id": "google-calendar-node",
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [750, 200],
+      "parameters": {
+        "operation": "create",
+        "calendarId": "primary",
+        "title": "={{ $json.title }}",
+        "start": "={{ $json.date }}T{{ $json.time }}:00",
+        "end": "={{ $json.date }}T{{ $json.time }}:00"
       },
       "credentials": {
-        "gmailOAuth2": {
-          "id": "1", 
-          "name": "Gmail OAuth2 account"
+        "googleCalendarOAuth2": {
+          "id": "1",
+          "name": "Google Calendar OAuth2"
+        }
+      }
+    },
+    {
+      "id": "telegram-send-node",
+      "name": "Send Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [750, 400],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "✅ Calendar event created successfully!\n\nTitle: {{ $json.title }}\nDate: {{ $json.date }}\nTime: {{ $json.time }}"
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "1",
+          "name": "Telegram Bot API"
         }
       }
     }
   ],
   "connections": {
-    "Gmail Trigger": {
+    "Telegram Trigger": {
       "main": [
         [
           {
-            "node": "Add Label",
+            "node": "Parse Event Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Event Details": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Event",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Confirmation",
             "type": "main",
             "index": 0
           }
