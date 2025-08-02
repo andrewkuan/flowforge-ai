@@ -2,15 +2,17 @@
 
 A minimalist web chat assistant that deeply understands automation problems, creates visual flowcharts for alignment verification, and generates downloadable n8n JSON workflows.
 
-## 🎯 Flowchart-First Approach
+## 🎯 Problem-First Approach
 
-FlowForge AI now follows a thoughtful, validation-driven process:
+FlowForge AI follows a thorough, problem-understanding process before any solutions:
 
-1. **Deep Problem Discovery** - Comprehensive clarifying questions
-2. **Visual Process Mapping** - Interactive Mermaid flowcharts  
-3. **User Validation** - Iterative refinement until perfect alignment
-4. **Smart Recommendations** - AI suggests optimal workflow type
-5. **n8n Generation** - Technical implementation only after approval
+1. **Continuous Problem Exploration** - Relentless questioning to understand complete context
+2. **Multi-layered Discovery** - Current state, pain points, constraints, stakeholders
+3. **Problem Validation** - AI summarizes understanding and confirms accuracy
+4. **Visual Process Mapping** - Interactive Mermaid flowcharts of current state
+5. **User Validation** - Iterative refinement until perfect alignment
+6. **Smart Recommendations** - AI suggests optimal workflow type
+7. **n8n Generation** - Technical implementation only after complete understanding
 
 ## ✨ Features
 
@@ -36,7 +38,9 @@ ANTHROPIC_API_KEY=your_key_here
 
 ## 📋 Benefits
 
-- **Prevents misalignment** between user expectations and final workflow
-- **Reduces rework** by validating understanding before implementation  
-- **Improves process documentation** with visual flowcharts
-- **Builds user confidence** through transparent, step-by-step approach
+- **Eliminates solution assumptions** by thoroughly understanding problems first
+- **Prevents costly misalignment** between user expectations and final workflow
+- **Reduces rework** by validating understanding before any technical implementation
+- **Improves process documentation** with comprehensive visual flowcharts
+- **Builds user confidence** through transparent, systematic discovery approach
+- **Uncovers hidden requirements** through persistent, intelligent questioning

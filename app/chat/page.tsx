@@ -390,23 +390,45 @@ export default function ChatPage() {
     }
   }
 
-  // Analyze user message for workflow recommendation
-  const analyzeForRecommendation = (userMessage: string) => {
-    // Only analyze if this is early in the conversation and contains automation keywords
-    const automationKeywords = [
-      'automate', 'workflow', 'process', 'trigger', 'when', 'if', 'schedule',
-      'integrate', 'connect', 'sync', 'monitor', 'alert', 'notification'
+  // Analyze AI response to determine if it's ready for workflow recommendations
+  const analyzeForRecommendation = (aiMessage: string) => {
+    // Look for AI signals that problem discovery is complete and ready for solutions
+    const readinessIndicators = [
+      'now that I understand your process',
+      'based on everything you\'ve told me',
+      'I have a complete picture',
+      'let me create a flowchart',
+      'ready to visualize',
+      'time to design',
+      'based on our discussion'
     ]
     
-    const hasAutomationIntent = automationKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
+    const isReadyForSolutions = readinessIndicators.some(indicator => 
+      aiMessage.toLowerCase().includes(indicator)
     )
     
-    // Trigger analysis if this looks like an automation request and we haven't shown recommendation yet
-    if (hasAutomationIntent && messages.length < 4 && !showRecommendation) {
-      const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessage)
-      setCurrentRecommendation(recommendation)
-      setShowRecommendation(true)
+    // Trigger workflow recommendation only when AI indicates readiness and we haven't shown it yet
+    if (isReadyForSolutions && !showRecommendation) {
+      // Extract the user's problem description from the conversation history
+      const userMessages = messages.filter(msg => msg.role === 'user').map(msg => msg.content).join(' ')
+      
+      if (userMessages.trim()) {
+        const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessages)
+        setCurrentRecommendation(recommendation)
+        setShowRecommendation(true)
+      }
+    }
+  }
+
+  // Function to manually trigger recommendation (for testing or edge cases)
+  const triggerWorkflowRecommendation = () => {
+    if (!showRecommendation) {
+      const userMessages = messages.filter(msg => msg.role === 'user').map(msg => msg.content).join(' ')
+      if (userMessages.trim()) {
+        const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessages)
+        setCurrentRecommendation(recommendation)
+        setShowRecommendation(true)
+      }
     }
   }
 
@@ -448,9 +470,6 @@ export default function ChatPage() {
 
     const userMessage = { role: 'user' as const, content: input }
     setMessages(prev => [...prev, userMessage])
-    
-    // Analyze for workflow recommendation before clearing input
-    analyzeForRecommendation(input)
     
     setInput('')
     setIsLoading(true)
@@ -526,6 +545,9 @@ export default function ChatPage() {
                     }
                     return newMessages
                   })
+                  
+                  // Check if AI is signaling readiness for workflow recommendations
+                  analyzeForRecommendation(aiContent)
                 }
               } catch (e) {
                 // Skip invalid JSON
