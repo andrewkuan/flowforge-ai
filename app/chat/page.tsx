@@ -437,19 +437,27 @@ export default function ChatPage() {
           display: 'flex',
           gap: '0.5rem'
         }}>
-          <input
-            type="text"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Describe your automation idea..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage()
+              }
+            }}
+            placeholder="Describe your automation idea... (Shift+Enter for new line)"
             style={{
               flex: 1,
               padding: '0.75rem 1rem',
               border: '1px solid #ccc',
               borderRadius: '8px',
               fontSize: '1rem',
-              outline: 'none'
+              outline: 'none',
+              resize: 'vertical',
+              minHeight: '2.5rem',
+              maxHeight: '8rem',
+              fontFamily: 'inherit'
             }}
           />
           <button
