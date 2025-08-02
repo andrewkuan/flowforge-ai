@@ -84,6 +84,7 @@ function FormattedMessage({
     
     console.log('📋 ✅ Extracted JSON length:', jsonContent.length)
     console.log('📋 ✅ First 100 chars of JSON:', jsonContent.substring(0, 100))
+    console.log('📋 🔍 Last 100 chars of JSON:', jsonContent.substring(jsonContent.length - 100))
     
     if (!jsonContent) {
       console.log('📋 ❌ No JSON content after extraction')
@@ -92,15 +93,20 @@ function FormattedMessage({
       return
     }
     
+    // Try to copy first, validate second (in case JSON is slightly malformed but still usable)
     try {
-      // Validate JSON first
-      JSON.parse(jsonContent)
-      console.log('📋 ✅ JSON validation successful')
-      
-      // Copy to clipboard
       await navigator.clipboard.writeText(jsonContent)
       console.log('📋 ✅ Successfully copied to clipboard!')
-      setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+      
+      // Try to validate JSON (but don't fail copy if invalid)
+      try {
+        JSON.parse(jsonContent)
+        console.log('📋 ✅ JSON validation successful')
+        setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+      } catch (jsonError) {
+        console.log('📋 ⚠️ JSON validation failed but content was still copied:', jsonError.message)
+        setCopyStatus({show: true, success: true, message: 'JSON copied (may need manual formatting)'})
+      }
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
       
     } catch (error) {
