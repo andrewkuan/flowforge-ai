@@ -78,11 +78,34 @@ function FormattedMessage({
       console.log('📋 No JSON code block found in content')
       console.log('📋 Trying alternative patterns...')
       
-      // Try alternative patterns
+      // Try alternative patterns - pattern 2 works based on your console
       const altPattern1 = text.match(/```json([\s\S]*?)```/)
       const altPattern2 = text.match(/json\s*([\s\S]*?)$/)
       console.log('📋 Alt pattern 1 (no spaces):', !!altPattern1)
       console.log('📋 Alt pattern 2 (json to end):', !!altPattern2)
+      
+      // Use the working pattern (pattern 2) as fallback
+      if (altPattern2) {
+        console.log('📋 Using alternative pattern 2 (json to end)')
+        const jsonContent = altPattern2[1].trim()
+        // Remove any trailing ``` if present
+        const cleanedJson = jsonContent.replace(/```\s*$/, '').trim()
+        console.log('📋 Alternative extraction successful, length:', cleanedJson.length)
+        
+        try {
+          JSON.parse(cleanedJson)
+          console.log('📋 Alternative JSON validation successful')
+          
+          // Copy using the alternative extraction
+          await navigator.clipboard.writeText(cleanedJson)
+          console.log('📋 Alternative copy successful!')
+          setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+          setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
+          return
+        } catch (e) {
+          console.log('📋 Alternative JSON validation failed:', e)
+        }
+      }
       
       setCopyStatus({show: true, success: false, message: 'No JSON workflow found to copy'})
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
