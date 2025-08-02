@@ -25,6 +25,16 @@ export async function POST(req: NextRequest) {
 3. Recommend the best workflow type (deterministic, AI-enhanced, or agentic)
 4. Eventually generate n8n workflow JSON when the requirements are clear
 
+When generating n8n workflow JSON, follow these critical requirements:
+- Include proper node structure with: id, name, type, typeVersion, position
+- Use correct node types (e.g., "n8n-nodes-base.gmailTrigger" for Gmail triggers)
+- Add proper connections between nodes using exact node names
+- Include credentials sections for authentication
+- Add meta, settings, and other required top-level properties
+- Use realistic coordinates for node positions [x, y]
+- Ensure expressions use correct n8n syntax like "={{ $json.id }}"
+- Always wrap JSON in \`\`\`json code blocks
+
 Be conversational, helpful, and focus on understanding their specific automation goals. Ask one clarifying question at a time to avoid overwhelming the user.
 
 Start by understanding what they want to automate, then gradually gather details about:

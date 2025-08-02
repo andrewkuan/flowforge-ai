@@ -1,41 +1,67 @@
 {
+  "meta": {
+    "instanceId": "flowforge-ai-generated"
+  },
   "nodes": [
     {
+      "id": "gmail-trigger-node",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
       "parameters": {
-        "authentication": "oAuth2",
-        "endpoint": "watch",
-        "label": "New Gmail Trigger",
-        "mailbox": "your-gmail-account@gmail.com"
+        "event": "messageReceived",
+        "simple": false,
+        "filters": {}
       },
-      "type": "n8n-nodes-base.gmail"
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1",
+          "name": "Gmail OAuth2 account"
+        }
+      }
     },
     {
+      "id": "gmail-label-node", 
+      "name": "Add Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [500, 300],
       "parameters": {
-        "authentication": "oAuth2",
-        "emailSubject": "={{$node[\"New Gmail Trigger\"].json[\"subject\"]}}",
-        "label": "new",
-        "options": {},
-        "recipient": "={{$node[\"New Gmail Trigger\"].json[\"from\"]}}"
+        "resource": "message",
+        "operation": "addLabel",
+        "messageId": "={{ $json.id }}",
+        "labelIds": ["INBOX"],
+        "labelNames": ["new"]
       },
-      "type": "n8n-nodes-base.gmail"
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1", 
+          "name": "Gmail OAuth2 account"
+        }
+      }
     }
   ],
-  "pinData": {},
-  "settings": {},
-  "workflowId": 1,
-  "id": "1",
-  "active": true,
   "connections": {
-    "New Gmail Trigger": {
+    "Gmail Trigger": {
       "main": [
         [
           {
-            "node": "Gmail",
+            "node": "Add Label",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
-  }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2024-08-02T12:00:00.000Z",
+  "versionId": "1"
 }
