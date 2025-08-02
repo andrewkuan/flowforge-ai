@@ -683,7 +683,11 @@ export default function ChatPage() {
       
       // Create a detailed message asking for automation suggestions
       const processText = processSteps.map((step, index) => `${index + 1}. ${step.content}`).join('\n')
-      const confirmationMessage = `Great! Here's my refined process:\n\n${processText}\n\nNow please analyze this process and suggest which specific steps should be automated using n8n. For each automation suggestion, explain what n8n nodes could be used and why that step is a good candidate for automation.`
+      const confirmationMessage = `Great! Here's my refined process:\n\n${processText}\n\nNow please analyze this process and suggest which specific steps should be automated using n8n. 
+
+**Automation Suggestions:**
+
+For each automation suggestion, explain what n8n nodes could be used and why that step is a good candidate for automation. Present your response as a numbered list of automation opportunities.`
       
       setMessages(prev => [...prev, { role: 'user', content: confirmationMessage }])
       setInput('')
@@ -991,9 +995,28 @@ export default function ChatPage() {
                     
                     // Save automation suggestions and workflow state to database
                     if (sessionId) {
-                      console.log('💾 Saving automation suggestions to database')
-                      StorageService.saveAutomationSuggestions(sessionId, suggestions).catch(console.error)
-                      StorageService.updateWorkflowState(sessionId, 'automation_generated').catch(console.error)
+                      console.log('💾 Saving automation suggestions to database:', {
+                        sessionId,
+                        suggestionsCount: suggestions.length,
+                        suggestions,
+                        previousWorkflowState: workflowState
+                      })
+                      
+                      StorageService.saveAutomationSuggestions(sessionId, suggestions)
+                        .then(() => {
+                          console.log('✅ Automation suggestions saved successfully')
+                        })
+                        .catch((error) => {
+                          console.error('❌ Failed to save automation suggestions:', error)
+                        })
+                      
+                      StorageService.updateWorkflowState(sessionId, 'automation_generated')
+                        .then(() => {
+                          console.log('✅ Workflow state updated to automation_generated')
+                        })
+                        .catch((error) => {
+                          console.error('❌ Failed to update workflow state:', error)
+                        })
                     }
                   } else {
                     console.log('⚠️ No automation suggestions extracted from AI response')
@@ -1007,14 +1030,33 @@ export default function ChatPage() {
                     console.log('🔄 Fallback: Forcing automation parsing since user requested it')
                     const suggestions = parseAutomationSuggestions(aiContent)
                     if (suggestions.length > 0) {
-                      console.log('✅ Fallback parsing successful:', suggestions)
+                      console.log('✅ Fallback parsing successful:', {
+                        sessionId,
+                        suggestionsCount: suggestions.length,
+                        suggestions,
+                        previousWorkflowState: workflowState
+                      })
                       setAutomationSuggestions(suggestions)
                       setShowAutomationSuggestions(true)
                       setWorkflowState('automation_generated')
                       
                       if (sessionId) {
-                        StorageService.saveAutomationSuggestions(sessionId, suggestions).catch(console.error)
-                        StorageService.updateWorkflowState(sessionId, 'automation_generated').catch(console.error)
+                        console.log('💾 Fallback: Saving automation suggestions to database')
+                        StorageService.saveAutomationSuggestions(sessionId, suggestions)
+                          .then(() => {
+                            console.log('✅ Fallback: Automation suggestions saved successfully')
+                          })
+                          .catch((error) => {
+                            console.error('❌ Fallback: Failed to save automation suggestions:', error)
+                          })
+                        
+                        StorageService.updateWorkflowState(sessionId, 'automation_generated')
+                          .then(() => {
+                            console.log('✅ Fallback: Workflow state updated to automation_generated')
+                          })
+                          .catch((error) => {
+                            console.error('❌ Fallback: Failed to update workflow state:', error)
+                          })
                       }
                     }
                   }
@@ -1116,6 +1158,11 @@ export default function ChatPage() {
         processSteps: savedProcessSteps,
         automationSuggestions: savedAutomationSuggestions
       })
+      
+      if (savedAutomationSuggestions.length === 0 && savedWorkflowState === 'process_confirmed') {
+        console.log('⚠️ PERSISTENCE ISSUE: WorkflowState is process_confirmed but no automation suggestions found')
+        console.log('This indicates automation suggestions were generated but not saved to database')
+      }
       
       setWorkflowState(savedWorkflowState)
       setProcessSteps(savedProcessSteps)
