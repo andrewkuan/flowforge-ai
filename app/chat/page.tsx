@@ -31,6 +31,35 @@ function FormattedMessage({ content }: { content: string }) {
     }
   }
 
+  // Function to copy JSON to clipboard
+  const copyJSONToClipboard = (text: string) => {
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+      const jsonContent = jsonMatch[1].trim()
+      try {
+        // Validate JSON
+        JSON.parse(jsonContent)
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(jsonContent).then(() => {
+          // Visual feedback - could be enhanced with a toast notification
+          alert('JSON workflow copied to clipboard!')
+        }).catch(() => {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea')
+          textArea.value = jsonContent
+          document.body.appendChild(textArea)
+          textArea.select()
+          document.execCommand('copy')
+          document.body.removeChild(textArea)
+          alert('JSON workflow copied to clipboard!')
+        })
+      } catch (e) {
+        alert('Invalid JSON format')
+      }
+    }
+  }
+
   // Split content into paragraphs and format numbered lists
   const formatContent = (text: string) => {
     const elements: JSX.Element[] = []
@@ -63,21 +92,52 @@ function FormattedMessage({ content }: { content: string }) {
               <span style={{ fontSize: '0.85rem', color: '#656d76', fontWeight: '500' }}>
                 n8n Workflow JSON
               </span>
-              <button
-                onClick={() => extractAndDownloadJSON(part)}
-                style={{
-                  backgroundColor: '#1a73e8',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '4px',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                📥 Download
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => copyJSONToClipboard(part)}
+                  style={{
+                    backgroundColor: '#6f42c1',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#5a2d8f'
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#6f42c1'
+                  }}
+                >
+                  📋 Copy
+                </button>
+                <button
+                  onClick={() => extractAndDownloadJSON(part)}
+                  style={{
+                    backgroundColor: '#1a73e8',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#1557b0'
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#1a73e8'
+                  }}
+                >
+                  📥 Download
+                </button>
+              </div>
             </div>
             <pre style={{
               margin: 0,
