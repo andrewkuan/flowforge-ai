@@ -1,4 +1,4 @@
-import { db, ChatSession, ChatMessage } from './database'
+import { db, ChatSession, ChatMessage, ProcessStep, WorkflowState } from './database'
 
 // Hook-like functions for database operations
 export class StorageService {
@@ -74,6 +74,34 @@ export class StorageService {
 
   static async clearAllData(): Promise<void> {
     await db.clearAllData()
+  }
+
+  // Process steps and automation suggestions
+  static async saveProcessSteps(sessionId: number, processSteps: ProcessStep[]): Promise<void> {
+    await db.updateSessionProcessSteps(sessionId, processSteps)
+  }
+
+  static async saveAutomationSuggestions(sessionId: number, automationSuggestions: string[]): Promise<void> {
+    await db.updateSessionAutomationSuggestions(sessionId, automationSuggestions)
+  }
+
+  static async getSessionProcessSteps(sessionId: number): Promise<ProcessStep[]> {
+    const session = await db.chatSessions.get(sessionId)
+    return session?.processSteps || []
+  }
+
+  static async getSessionAutomationSuggestions(sessionId: number): Promise<string[]> {
+    const session = await db.chatSessions.get(sessionId)
+    return session?.automationSuggestions || []
+  }
+
+  static async updateWorkflowState(sessionId: number, workflowState: WorkflowState): Promise<void> {
+    await db.updateSessionWorkflowState(sessionId, workflowState)
+  }
+
+  static async getSessionWorkflowState(sessionId: number): Promise<WorkflowState> {
+    const session = await db.chatSessions.get(sessionId)
+    return session?.workflowState || 'initial'
   }
 
   // Auto-save functionality

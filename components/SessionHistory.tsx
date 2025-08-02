@@ -17,6 +17,7 @@ export default function SessionHistory({
 }: SessionHistoryProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState<number | null>(null)
 
   useEffect(() => {
     loadSessions()
@@ -32,28 +33,38 @@ export default function SessionHistory({
   }
 
   const handleSessionClick = async (sessionId: number) => {
+    // Cancel any pending deletion when switching sessions
+    setSessionToDelete(null)
+    
     if (sessionId !== currentSessionId) {
       onSessionSelect(sessionId)
     }
     setIsExpanded(false)
   }
 
-  const handleDeleteSession = async (sessionId: number, event: React.MouseEvent) => {
+  const handleDeleteSession = (sessionId: number, event: React.MouseEvent) => {
     event.stopPropagation()
-    
-    if (confirm('Are you sure you want to delete this session?')) {
-      try {
-        await StorageService.deleteSession(sessionId)
-        await loadSessions()
-        
-        // If we deleted the current session, start a new one
-        if (sessionId === currentSessionId) {
-          onNewSession()
-        }
-      } catch (error) {
-        console.error('Failed to delete session:', error)
+    setSessionToDelete(sessionId)
+  }
+
+  const confirmDeleteSession = async (sessionId: number) => {
+    try {
+      await StorageService.deleteSession(sessionId)
+      await loadSessions()
+      
+      // If we deleted the current session, start a new one
+      if (sessionId === currentSessionId) {
+        onNewSession()
       }
+    } catch (error) {
+      console.error('Failed to delete session:', error)
+    } finally {
+      setSessionToDelete(null)
     }
+  }
+
+  const cancelDeleteSession = () => {
+    setSessionToDelete(null)
   }
 
   if (sessions.length === 0) {
@@ -153,29 +164,70 @@ export default function SessionHistory({
                 </div>
               </div>
               
-              <button
-                onClick={(e) => session.id && handleDeleteSession(session.id, e)}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: '#666',
-                  cursor: 'pointer',
-                  padding: '0.25rem',
-                  marginLeft: '0.5rem',
-                  borderRadius: '4px',
-                  fontSize: '0.8rem'
-                }}
-                onMouseOver={(e) => {
-                  (e.target as HTMLButtonElement).style.backgroundColor = '#ff6b6b'
-                  ;(e.target as HTMLButtonElement).style.color = 'white'
-                }}
-                onMouseOut={(e) => {
-                  (e.target as HTMLButtonElement).style.backgroundColor = 'transparent'
-                  ;(e.target as HTMLButtonElement).style.color = '#666'
-                }}
-              >
-                ×
-              </button>
+              {sessionToDelete === session.id ? (
+                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      session.id && confirmDeleteSession(session.id)
+                    }}
+                    style={{
+                      backgroundColor: '#ff6b6b',
+                      border: 'none',
+                      color: 'white',
+                      cursor: 'pointer',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      cancelDeleteSession()
+                    }}
+                    style={{
+                      backgroundColor: '#6b7280',
+                      border: 'none',
+                      color: 'white',
+                      cursor: 'pointer',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => session.id && handleDeleteSession(session.id, e)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#666',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                    marginLeft: '0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem'
+                  }}
+                  onMouseOver={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = '#ff6b6b'
+                    ;(e.target as HTMLButtonElement).style.color = 'white'
+                  }}
+                  onMouseOut={(e) => {
+                    (e.target as HTMLButtonElement).style.backgroundColor = 'transparent'
+                    ;(e.target as HTMLButtonElement).style.color = '#666'
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
           

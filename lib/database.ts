@@ -1,5 +1,19 @@
 import Dexie, { Table } from 'dexie'
 
+// Process step interface
+export interface ProcessStep {
+  id: string
+  content: string
+}
+
+// Workflow state enum
+export type WorkflowState = 
+  | 'initial'                    // No process generated yet
+  | 'process_generated'          // AI generated process steps
+  | 'process_confirmed'          // User confirmed process steps
+  | 'automation_generated'       // AI generated automation suggestions
+  | 'workflow_generated'         // Final n8n workflow generated
+
 // Database schema interfaces
 export interface ChatSession {
   id?: number
@@ -7,6 +21,9 @@ export interface ChatSession {
   createdAt: Date
   updatedAt: Date
   isActive: number // 1 for active, 0 for inactive (IndexedDB compatibility)
+  processSteps?: ProcessStep[] // Persistent process steps for this session
+  automationSuggestions?: string[] // Persistent automation suggestions for this session
+  workflowState?: WorkflowState // Current state of the workflow progression
 }
 
 export interface ChatMessage {
@@ -36,7 +53,15 @@ export class FlowForgeDatabase extends Dexie {
   constructor() {
     super('FlowForgeAI')
     
+    // Version 1 - Original schema
     this.version(1).stores({
+      chatSessions: '++id, title, createdAt, updatedAt, isActive',
+      chatMessages: '++id, sessionId, role, timestamp',
+      workflows: '++id, sessionId, name, createdAt'
+    })
+    
+    // Version 2 - Add processSteps and automationSuggestions to sessions
+    this.version(2).stores({
       chatSessions: '++id, title, createdAt, updatedAt, isActive',
       chatMessages: '++id, sessionId, role, timestamp',
       workflows: '++id, sessionId, name, createdAt'
@@ -81,6 +106,27 @@ export class FlowForgeDatabase extends Dexie {
     // Mark selected session as active
     await this.chatSessions.update(sessionId, { 
       isActive: 1,
+      updatedAt: new Date()
+    })
+  }
+
+  async updateSessionProcessSteps(sessionId: number, processSteps: ProcessStep[]): Promise<void> {
+    await this.chatSessions.update(sessionId, { 
+      processSteps,
+      updatedAt: new Date()
+    })
+  }
+
+  async updateSessionAutomationSuggestions(sessionId: number, automationSuggestions: string[]): Promise<void> {
+    await this.chatSessions.update(sessionId, { 
+      automationSuggestions,
+      updatedAt: new Date()
+    })
+  }
+
+  async updateSessionWorkflowState(sessionId: number, workflowState: WorkflowState): Promise<void> {
+    await this.chatSessions.update(sessionId, { 
+      workflowState,
       updatedAt: new Date()
     })
   }

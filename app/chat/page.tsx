@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { StorageService } from '@/lib/storage'
-import { ChatMessage as StoredChatMessage } from '@/lib/database'
+import { ChatMessage as StoredChatMessage, ProcessStep, WorkflowState } from '@/lib/database'
 import SessionHistory from '@/components/SessionHistory'
-import WorkflowRecommendationComponent from '@/components/WorkflowRecommendation'
+import EditableProcessPanel from '@/components/EditableProcessPanel'
+import AutomationSuggestionsPanel from '@/components/AutomationSuggestionsPanel'
+
 import MermaidDiagram from '@/components/MermaidDiagram'
-import { WorkflowAnalyzer, WorkflowRecommendation, WorkflowType } from '@/lib/workflow-analyzer'
 
 // Component to format AI messages with better structure
 function FormattedMessage({ 
@@ -339,10 +340,17 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
-  const [currentRecommendation, setCurrentRecommendation] = useState<WorkflowRecommendation | null>(null)
-  const [showRecommendation, setShowRecommendation] = useState(false)
+
   const [flowcharts, setFlowcharts] = useState<Array<{id: string, content: string, title: string}>>([])
   const [hasActiveFlowchart, setHasActiveFlowchart] = useState(false)
+  
+  // Process panel state
+  const [processSteps, setProcessSteps] = useState<ProcessStep[]>([])
+  const [showProcessPanel, setShowProcessPanel] = useState(false)
+  const [automationSuggestions, setAutomationSuggestions] = useState<string[]>([])
+  const [showAutomationSuggestions, setShowAutomationSuggestions] = useState(false)
+  const [workflowState, setWorkflowState] = useState<WorkflowState>('initial')
+
 
   // Function to copy Mermaid to clipboard
   const copyMermaidToClipboard = (text: string) => {
@@ -414,29 +422,318 @@ export default function ChatPage() {
     updateFlowcharts()
   }, [messages])
 
+  // Function to parse process steps from AI response
+  const parseProcessSteps = (content: string): ProcessStep[] => {
+    const steps: ProcessStep[] = []
+    
+    // Look for the "Current Process:" section and extract numbered steps
+    const processMatch = content.match(/\*\*Current Process:\*\*\s*([\s\S]*?)(?=\n\n|\nDoes this capture|$)/i)
+    
+    if (processMatch) {
+      const processSection = processMatch[1]
+      const numberedListRegex = /^(\d+)\.\s*(.+)$/gm
+      let match
+      
+      while ((match = numberedListRegex.exec(processSection)) !== null) {
+        steps.push({
+          id: `step_${match[1]}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          content: match[2].trim()
+        })
+      }
+    } else {
+      // Fallback: Look for any numbered list patterns
+      const numberedListRegex = /^(\d+)\.\s*(.+)$/gm
+      let match
+      
+      while ((match = numberedListRegex.exec(content)) !== null) {
+        steps.push({
+          id: `step_${match[1]}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          content: match[2].trim()
+        })
+      }
+    }
+    
+    return steps
+  }
+
+  // Function to detect if AI response contains a process suggestion
+  const detectProcessSuggestion = (content: string): boolean => {
+    const processIndicators = [
+      '**current process:**',
+      'current process:',
+      'does this capture the process accurately',
+      'let me know if i\'m missing anything'
+    ]
+    
+    const lowerContent = content.toLowerCase()
+    return processIndicators.some(indicator => lowerContent.includes(indicator))
+  }
+
+  // Function to detect if AI response contains automation suggestions
+  const detectAutomationSuggestions = (content: string): boolean => {
+    const automationIndicators = [
+      'automation suggestions',
+      'automate using n8n',
+      'n8n nodes',
+      'steps should be automated',
+      'automation opportunities'
+    ]
+    
+    const lowerContent = content.toLowerCase()
+    return automationIndicators.some(indicator => lowerContent.includes(indicator))
+  }
+
+  // Function to parse automation suggestions from AI response
+  const parseAutomationSuggestions = (content: string): string[] => {
+    const suggestions: string[] = []
+    
+    // Look for numbered list patterns in automation suggestions
+    const lines = content.split('\n')
+    let inSuggestionSection = false
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      
+      // Check if we're entering a suggestion section
+      if (trimmedLine.toLowerCase().includes('automation') || 
+          trimmedLine.toLowerCase().includes('n8n') ||
+          trimmedLine.toLowerCase().includes('automate')) {
+        inSuggestionSection = true
+      }
+      
+      // Parse numbered suggestions
+      if (inSuggestionSection) {
+        const match = trimmedLine.match(/^(\d+)\.?\s*(.+)$/)
+        if (match && match[2]) {
+          suggestions.push(match[2].trim())
+        }
+      }
+    }
+    
+    return suggestions
+  }
+
+  // Handle process steps changes
+  const handleProcessStepsChange = (steps: ProcessStep[]) => {
+    setProcessSteps(steps)
+    
+    // Save to database when process steps change
+    if (currentSessionId) {
+      StorageService.saveProcessSteps(currentSessionId, steps).catch(console.error)
+    }
+  }
+
+  // Handle process confirmation
+  const handleProcessConfirm = () => {
+    // Check if automation suggestions were already generated
+    if (workflowState === 'automation_generated') {
+      // If automation suggestions already exist, switch to showing them
+      setShowProcessPanel(false)
+      setShowAutomationSuggestions(true)
+      return
+    }
+    
+    // If process hasn't been confirmed yet, confirm it and request automation suggestions
+    if (workflowState === 'process_generated') {
+      setShowProcessPanel(false)
+      
+      // Update workflow state to confirmed
+      if (currentSessionId) {
+        StorageService.updateWorkflowState(currentSessionId, 'process_confirmed').catch(console.error)
+        setWorkflowState('process_confirmed')
+      }
+      
+      // Create a detailed message asking for automation suggestions
+      const processText = processSteps.map((step, index) => `${index + 1}. ${step.content}`).join('\n')
+      const confirmationMessage = `Great! Here's my refined process:\n\n${processText}\n\nNow please analyze this process and suggest which specific steps should be automated using n8n. For each automation suggestion, explain what n8n nodes could be used and why that step is a good candidate for automation.`
+      
+      setMessages(prev => [...prev, { role: 'user', content: confirmationMessage }])
+      setInput('')
+      setIsLoading(true)
+
+      // Auto-save and send to AI
+      if (currentSessionId) {
+        StorageService.autoSaveMessage('user', confirmationMessage).catch(console.error)
+      }
+
+      // Send to AI
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, { role: 'user', content: confirmationMessage }]
+      }),
+    }).then(async response => {
+      if (!response.ok) throw new Error('Failed to get response')
+      
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let aiContent = ''
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') {
+                setIsLoading(false)
+                return
+              }
+
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.content) {
+                  aiContent += parsed.content
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    newMessages[newMessages.length - 1].content = aiContent
+                    return newMessages
+                  })
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+      }
+
+      setIsLoading(false)
+      
+      // Auto-save AI response
+      if (currentSessionId) {
+        StorageService.autoSaveMessage('assistant', aiContent).catch(console.error)
+      }
+    }).catch(error => {
+      console.error('Error:', error)
+      setIsLoading(false)
+    })
+    }
+  }
+
+  // Handle automation confirmation
+  const handleAutomationConfirm = () => {
+    setShowAutomationSuggestions(false)
+    
+    // Create message asking for final n8n workflow
+    const processText = processSteps.map((step, index) => `${index + 1}. ${step.content}`).join('\n')
+    const automationText = automationSuggestions.map((suggestion, index) => `${index + 1}. ${suggestion}`).join('\n')
+    const confirmationMessage = `Perfect! Please create the complete n8n workflow JSON for this process:\n\n**Process Steps:**\n${processText}\n\n**Automation Points:**\n${automationText}\n\nGenerate the complete n8n workflow JSON that I can import directly into n8n.`
+    
+    setMessages(prev => [...prev, { role: 'user', content: confirmationMessage }])
+    setInput('')
+    setIsLoading(true)
+
+    // Auto-save and send to AI, and update workflow state
+    if (currentSessionId) {
+      StorageService.autoSaveMessage('user', confirmationMessage).catch(console.error)
+      StorageService.updateWorkflowState(currentSessionId, 'workflow_generated').catch(console.error)
+      setWorkflowState('workflow_generated')
+    }
+
+    // Send to AI
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, { role: 'user', content: confirmationMessage }]
+      }),
+    }).then(async response => {
+      if (!response.ok) throw new Error('Failed to get response')
+      
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let aiContent = ''
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') {
+                setIsLoading(false)
+                return
+              }
+
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.content) {
+                  aiContent += parsed.content
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    newMessages[newMessages.length - 1].content = aiContent
+                    return newMessages
+                  })
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+      }
+
+      setIsLoading(false)
+      
+      // Auto-save AI response
+      if (currentSessionId) {
+        StorageService.autoSaveMessage('assistant', aiContent).catch(console.error)
+      }
+    }).catch(error => {
+      console.error('Error:', error)
+      setIsLoading(false)
+    })
+  }
+
   // Initialize session on component mount
   useEffect(() => {
+    // Set up immediate initialization to prevent hanging
+    setIsInitialized(true) // Initialize immediately
+    
+    // Try to load stored data in the background
     const initializeSession = async () => {
       try {
-        const { sessionId, messages: storedMessages } = await StorageService.initializeSession()
+        const result = await StorageService.initializeSession()
         
-        if (storedMessages.length > 0) {
+        if (result.messages && result.messages.length > 0) {
           // Convert stored messages to component format
-          const formattedMessages = storedMessages.map(msg => ({
+          const formattedMessages = result.messages.map((msg: any) => ({
             role: msg.role,
             content: msg.content
           }))
           setMessages(formattedMessages)
         }
         
-        setCurrentSessionId(sessionId)
-        setIsInitialized(true)
+        setCurrentSessionId(result.sessionId)
       } catch (error) {
-        console.error('Failed to initialize session:', error)
-        setIsInitialized(true) // Continue even if initialization fails
+        console.error('Storage initialization failed, continuing without stored data:', error)
+        // App continues to work without storage
+        setCurrentSessionId(null)
+        setMessages([])
       }
     }
 
+    // Run initialization in background without blocking UI
     initializeSession()
   }, [])
 
@@ -454,80 +751,17 @@ export default function ChatPage() {
     }
   }
 
-  // Analyze AI response to determine if it's ready for workflow recommendations
-  const analyzeForRecommendation = (aiMessage: string) => {
-    // Look for AI signals that problem discovery is complete and ready for solutions
-    const readinessIndicators = [
-      'now that I understand your process',
-      'based on everything you\'ve told me',
-      'I have a complete picture',
-      'let me create a flowchart',
-      'ready to visualize',
-      'time to design',
-      'based on our discussion'
-    ]
-    
-    const isReadyForSolutions = readinessIndicators.some(indicator => 
-      aiMessage.toLowerCase().includes(indicator)
-    )
-    
-    // Trigger workflow recommendation only when AI indicates readiness and we haven't shown it yet
-    if (isReadyForSolutions && !showRecommendation) {
-      // Extract the user's problem description from the conversation history
-      const userMessages = messages.filter(msg => msg.role === 'user').map(msg => msg.content).join(' ')
-      
-      if (userMessages.trim()) {
-        const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessages)
-        setCurrentRecommendation(recommendation)
-        setShowRecommendation(true)
-      }
-    }
-  }
 
-  // Function to manually trigger recommendation (for testing or edge cases)
-  const triggerWorkflowRecommendation = () => {
-    if (!showRecommendation) {
-      const userMessages = messages.filter(msg => msg.role === 'user').map(msg => msg.content).join(' ')
-      if (userMessages.trim()) {
-        const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessages)
-        setCurrentRecommendation(recommendation)
-        setShowRecommendation(true)
-      }
-    }
-  }
 
-  // Handle recommendation acceptance
-  const handleAcceptRecommendation = (type: WorkflowType) => {
-    setShowRecommendation(false)
-    // Add a message about the accepted recommendation
-    const confirmationMessage = `Perfect! I'll create a ${type.replace('-', ' ')} workflow for you. Let me gather a few more details to build the optimal solution.`
-    
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: confirmationMessage
-    }])
-    
-    // Save the confirmation message
-    if (currentSessionId) {
-      StorageService.autoSaveMessage('assistant', confirmationMessage)
-    }
-  }
 
-  // Handle recommendation modification
-  const handleModifyRecommendation = () => {
-    setShowRecommendation(false)
-    const modifyMessage = `I'd be happy to adjust my recommendation! Could you tell me more about your specific requirements or any constraints I should consider?`
-    
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: modifyMessage
-    }])
-    
-    // Save the modify message
-    if (currentSessionId) {
-      StorageService.autoSaveMessage('assistant', modifyMessage)
-    }
-  }
+
+
+
+
+
+
+
+
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -586,6 +820,38 @@ export default function ChatPage() {
               if (data === '[DONE]') {
                 setIsLoading(false)
                 
+                // Check if this response contains a process suggestion
+                if (detectProcessSuggestion(aiContent)) {
+                  const steps = parseProcessSteps(aiContent)
+                  if (steps.length > 0) {
+                    setProcessSteps(steps)
+                    setShowProcessPanel(true)
+                    setWorkflowState('process_generated')
+                    
+                    // Save process steps and workflow state to database
+                    if (sessionId) {
+                      StorageService.saveProcessSteps(sessionId, steps).catch(console.error)
+                      StorageService.updateWorkflowState(sessionId, 'process_generated').catch(console.error)
+                    }
+                  }
+                }
+                
+                // Check if this response contains automation suggestions
+                if (detectAutomationSuggestions(aiContent)) {
+                  const suggestions = parseAutomationSuggestions(aiContent)
+                  if (suggestions.length > 0) {
+                    setAutomationSuggestions(suggestions)
+                    setShowAutomationSuggestions(true)
+                    setWorkflowState('automation_generated')
+                    
+                    // Save automation suggestions and workflow state to database
+                    if (sessionId) {
+                      StorageService.saveAutomationSuggestions(sessionId, suggestions).catch(console.error)
+                      StorageService.updateWorkflowState(sessionId, 'automation_generated').catch(console.error)
+                    }
+                  }
+                }
+                
                 // Auto-save complete AI response
                 if (sessionId && aiContent) {
                   try {
@@ -610,8 +876,7 @@ export default function ChatPage() {
                     return newMessages
                   })
                   
-                  // Check if AI is signaling readiness for workflow recommendations
-                  analyzeForRecommendation(aiContent)
+
                 }
               } catch (e) {
                 // Skip invalid JSON
@@ -647,6 +912,13 @@ export default function ChatPage() {
       const newSessionId = await StorageService.startNewSession()
       setCurrentSessionId(newSessionId)
       setMessages([])
+      
+      // Clear all workflow data for new session
+      setProcessSteps([])
+      setAutomationSuggestions([])
+      setWorkflowState('initial')
+      setShowProcessPanel(false)
+      setShowAutomationSuggestions(false)
     } catch (error) {
       console.error('Failed to start new session:', error)
     }
@@ -662,6 +934,35 @@ export default function ChatPage() {
       }))
       setMessages(formattedMessages)
       setCurrentSessionId(sessionId)
+      
+      // Load persistent workflow state and data
+      const savedWorkflowState = await StorageService.getSessionWorkflowState(sessionId)
+      const savedProcessSteps = await StorageService.getSessionProcessSteps(sessionId)
+      const savedAutomationSuggestions = await StorageService.getSessionAutomationSuggestions(sessionId)
+      
+      setWorkflowState(savedWorkflowState)
+      setProcessSteps(savedProcessSteps)
+      setAutomationSuggestions(savedAutomationSuggestions)
+      
+      // Show appropriate panels based on workflow state
+      switch (savedWorkflowState) {
+        case 'process_generated':
+        case 'process_confirmed':
+          setShowProcessPanel(true)
+          setShowAutomationSuggestions(false)
+          break
+        case 'automation_generated':
+          setShowProcessPanel(false)
+          setShowAutomationSuggestions(true)
+          break
+        case 'workflow_generated':
+          setShowProcessPanel(false)
+          setShowAutomationSuggestions(false)
+          break
+        default:
+          setShowProcessPanel(false)
+          setShowAutomationSuggestions(false)
+      }
     } catch (error) {
       console.error('Failed to load session:', error)
     }
@@ -729,7 +1030,7 @@ export default function ChatPage() {
       <div style={{ 
         flex: 1, 
         display: 'flex',
-        maxWidth: hasActiveFlowchart ? '1400px' : '800px',
+        maxWidth: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1400px' : '800px',
         margin: '0 auto',
         width: '100%'
       }}>
@@ -737,7 +1038,7 @@ export default function ChatPage() {
         <div style={{ 
           flex: 1,
           padding: '2rem',
-          paddingRight: hasActiveFlowchart ? '1rem' : '2rem'
+          paddingRight: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1rem' : '2rem'
         }}>
         {!isInitialized ? (
           <div style={{ textAlign: 'center', marginTop: '4rem' }}>
@@ -749,8 +1050,9 @@ export default function ChatPage() {
               Let's create your n8n workflow
             </h2>
             <p style={{ color: '#666', marginBottom: '2rem' }}>
-              Describe your automation idea and I'll help you build it step by step.
+              Describe your process or problem, and I'll help you identify automation opportunities and build an n8n workflow.
             </p>
+
           </div>
         ) : (
           <div style={{ marginBottom: '2rem' }}>
@@ -789,16 +1091,9 @@ export default function ChatPage() {
               </div>
             ))}
             
-            {/* Show workflow recommendation if available */}
-            {showRecommendation && currentRecommendation && (
-              <div style={{ margin: '1.5rem 0' }}>
-                <WorkflowRecommendationComponent
-                  recommendation={currentRecommendation}
-                  onAccept={handleAcceptRecommendation}
-                  onModify={handleModifyRecommendation}
-                />
-              </div>
-            )}
+
+
+
             
             {isLoading && (
               <div style={{ 
@@ -933,6 +1228,24 @@ export default function ChatPage() {
             ))}
           </div>
         )}
+
+        {/* Process Panel */}
+        <EditableProcessPanel
+          processSteps={processSteps}
+          onStepsChange={handleProcessStepsChange}
+          onConfirm={handleProcessConfirm}
+          isVisible={showProcessPanel}
+          title="Your Current Process"
+          workflowState={workflowState}
+        />
+
+        {/* Automation Suggestions Panel */}
+        <AutomationSuggestionsPanel
+          suggestions={automationSuggestions}
+          onConfirm={handleAutomationConfirm}
+          isVisible={showAutomationSuggestions}
+          title="Automation Opportunities"
+        />
       </div>
 
       {/* Input Area */}
@@ -942,7 +1255,7 @@ export default function ChatPage() {
         backgroundColor: 'white'
       }}>
         <div style={{ 
-          maxWidth: hasActiveFlowchart ? '1400px' : '800px', 
+          maxWidth: (hasActiveFlowchart || showProcessPanel || showAutomationSuggestions) ? '1400px' : '800px', 
           margin: '0 auto',
           display: 'flex',
           gap: '0.75rem',
