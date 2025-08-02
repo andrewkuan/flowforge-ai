@@ -8,7 +8,7 @@ const anthropic = new Anthropic({
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json()
+    const { messages, model } = await req.json()
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -270,7 +270,7 @@ CRITICAL FORMAT REQUIREMENTS:
 
     // Create streaming response
     const stream = await anthropic.messages.create({
-      model: 'claude-sonnet-4-0',
+      model: model || 'claude-3-5-sonnet-20241022', // Use selected model or default
       max_tokens: 4000,  // Increased for complete n8n workflow generation
       system: systemPrompt,
       messages: anthropicMessages,

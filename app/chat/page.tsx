@@ -431,6 +431,9 @@ export default function ChatPage() {
     success: false,
     message: ''
   })
+  
+  // Model selection state
+  const [selectedModel, setSelectedModel] = useState('claude-3-5-sonnet-20241022')
 
 
   // Function to copy Mermaid to clipboard
@@ -809,7 +812,7 @@ export default function ChatPage() {
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedMessages }),
+      body: JSON.stringify({ messages: updatedMessages, model: selectedModel }),
     }).then(async response => {
       if (!response.ok) throw new Error('Failed to get response')
       
@@ -926,7 +929,8 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: [...messages, { role: 'user', content: confirmationMessage }]
+        messages: [...messages, { role: 'user', content: confirmationMessage }],
+        model: selectedModel
       }),
     }).then(async response => {
       if (!response.ok) throw new Error('Failed to get response')
@@ -1005,7 +1009,8 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: [...messages, { role: 'user', content: confirmationMessage }]
+        messages: [...messages, { role: 'user', content: confirmationMessage }],
+        model: selectedModel
       }),
     }).then(async response => {
       if (!response.ok) throw new Error('Failed to get response')
@@ -1122,7 +1127,8 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage]
+          messages: [...messages, userMessage],
+          model: selectedModel
         }),
       })
 
@@ -1232,6 +1238,30 @@ For each automation suggestion, explain what n8n nodes could be used and why tha
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
             n8n Workflow Assistant
           </p>
+          
+          {/* Model Selector */}
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            style={{
+              padding: '0.4rem 0.8rem',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              backgroundColor: 'white',
+              color: '#666',
+              cursor: 'pointer',
+              outline: 'none'
+            }}
+          >
+            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Oct 2024)</option>
+            <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet (Jun 2024)</option>
+            <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+            <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+            <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+            <option value="claude-sonnet-4-0">Claude 4 Sonnet (experimental)</option>
+            <option value="claude-3-7-sonnet-20250224">Claude 3.7 Sonnet (experimental)</option>
+          </select>
               {messages.length > 0 && (
                 <button
               onClick={resetChat}
