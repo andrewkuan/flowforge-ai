@@ -65,115 +65,76 @@ function FormattedMessage({
     }
   }
 
-  // Function to copy JSON to clipboard with improved error handling
+  // Function to copy JSON to clipboard - SIMPLE & BULLETPROOF
   const copyJSONToClipboard = async (text: string) => {
-    console.log('📋 Copy button clicked, text length:', text.length)
-    console.log('📋 First 200 chars:', text.substring(0, 200))
-    console.log('📋 Last 200 chars:', text.substring(text.length - 200))
+    console.log('📋 Simple copy function - text length:', text.length)
     
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-    console.log('📋 JSON match found:', !!jsonMatch)
-    
-    if (!jsonMatch) {
-      console.log('📋 No JSON code block found in content')
-      console.log('📋 Trying alternative patterns...')
-      
-      // Try alternative patterns - pattern 2 works based on your console
-      const altPattern1 = text.match(/```json([\s\S]*?)```/)
-      const altPattern2 = text.match(/json\s*([\s\S]*?)$/)
-      console.log('📋 Alt pattern 1 (no spaces):', !!altPattern1)
-      console.log('📋 Alt pattern 2 (json to end):', !!altPattern2)
-      
-      // Use the working pattern (pattern 2) as fallback
-      if (altPattern2) {
-        console.log('📋 Using alternative pattern 2 (json to end)')
-        const jsonContent = altPattern2[1].trim()
-        // Remove any trailing ``` if present
-        const cleanedJson = jsonContent.replace(/```\s*$/, '').trim()
-        console.log('📋 Alternative extraction successful, length:', cleanedJson.length)
-        
-        try {
-          JSON.parse(cleanedJson)
-          console.log('📋 Alternative JSON validation successful')
-          
-          // Copy using the alternative extraction
-          await navigator.clipboard.writeText(cleanedJson)
-          console.log('📋 Alternative copy successful!')
-          setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
-          setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
-          return
-        } catch (e) {
-          console.log('📋 Alternative JSON validation failed:', e)
-        }
-      }
-      
+    // Dead simple approach: if it starts with ```json, extract everything after it
+    if (!text.startsWith('```json')) {
+      console.log('📋 ❌ Content does not start with ```json')
       setCopyStatus({show: true, success: false, message: 'No JSON workflow found to copy'})
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
       return
     }
-
-    let jsonContent = jsonMatch[1].trim()
-    console.log('📋 Extracted JSON content length:', jsonContent.length)
     
-    // If no match with original pattern, try direct extraction like display logic
-    if (!jsonContent && text.startsWith('```json')) {
-      console.log('📋 Using direct extraction method')
-      jsonContent = text.replace(/```json\s*/, '').replace(/\s*```$/, '').trim()
-      console.log('📋 Direct extraction result length:', jsonContent.length)
-    }
+    // Extract JSON content: remove ```json from start, remove any ``` from end
+    let jsonContent = text.substring(7) // Remove '```json'
+    jsonContent = jsonContent.replace(/```\s*$/, '') // Remove trailing ```
+    jsonContent = jsonContent.trim() // Clean whitespace
+    
+    console.log('📋 ✅ Extracted JSON length:', jsonContent.length)
+    console.log('📋 ✅ First 100 chars of JSON:', jsonContent.substring(0, 100))
     
     if (!jsonContent) {
-      console.log('📋 Still no JSON content after extraction attempts')
+      console.log('📋 ❌ No JSON content after extraction')
       setCopyStatus({show: true, success: false, message: 'Could not extract JSON content'})
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
       return
     }
     
-      try {
-        // Validate JSON
-        JSON.parse(jsonContent)
-      console.log('📋 JSON validation successful')
+    try {
+      // Validate JSON first
+      JSON.parse(jsonContent)
+      console.log('📋 ✅ JSON validation successful')
       
-      // Try modern Clipboard API first
-      if (navigator.clipboard && window.isSecureContext) {
+      // Copy to clipboard
+      await navigator.clipboard.writeText(jsonContent)
+      console.log('📋 ✅ Successfully copied to clipboard!')
+      setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+      setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
+      
+    } catch (error) {
+      console.log('📋 ❌ Error:', error)
+      
+      if (error instanceof SyntaxError) {
+        setCopyStatus({show: true, success: false, message: 'Invalid JSON format - cannot copy'})
+      } else {
+        // Fallback for clipboard permission issues
+        console.log('📋 🔄 Trying fallback copy method...')
         try {
-          await navigator.clipboard.writeText(jsonContent)
-          console.log('📋 Successfully copied via Clipboard API')
-          setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
-          setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
-          return
-        } catch (clipboardError) {
-          console.log('📋 Clipboard API failed:', clipboardError)
-        }
-      }
-      
-      // Fallback method for older browsers or permission issues
-      console.log('📋 Using fallback copy method')
           const textArea = document.createElement('textarea')
           textArea.value = jsonContent
-      textArea.style.position = 'fixed'
-      textArea.style.left = '-999999px'
-      textArea.style.top = '-999999px'
+          textArea.style.position = 'fixed'
+          textArea.style.left = '-999999px'
+          textArea.style.top = '-999999px'
           document.body.appendChild(textArea)
-      textArea.focus()
+          textArea.focus()
           textArea.select()
-      
-      const successful = document.execCommand('copy')
+          
+          const successful = document.execCommand('copy')
           document.body.removeChild(textArea)
-      
-      if (successful) {
-        console.log('📋 Successfully copied via fallback method')
-        setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
-        setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
-      } else {
-        console.log('📋 Fallback copy method also failed')
-        setCopyStatus({show: true, success: false, message: 'Copy failed. Please select and copy the JSON manually.'})
-        setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 5000)
+          
+          if (successful) {
+            console.log('📋 ✅ Fallback copy successful!')
+            setCopyStatus({show: true, success: true, message: 'n8n workflow JSON copied to clipboard!'})
+          } else {
+            throw new Error('Fallback copy failed')
+          }
+        } catch (fallbackError) {
+          console.log('📋 ❌ All copy methods failed:', fallbackError)
+          setCopyStatus({show: true, success: false, message: 'Copy failed - please try selecting and copying manually'})
+        }
       }
-      
-      } catch (e) {
-      console.log('📋 JSON validation failed:', e)
-      setCopyStatus({show: true, success: false, message: 'Invalid JSON format - cannot copy'})
       setTimeout(() => setCopyStatus({show: false, success: false, message: ''}), 3000)
     }
   }
