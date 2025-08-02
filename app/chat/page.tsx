@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { StorageService } from '@/lib/storage'
 import { ChatMessage as StoredChatMessage } from '@/lib/database'
 import SessionHistory from '@/components/SessionHistory'
+import WorkflowRecommendationComponent from '@/components/WorkflowRecommendation'
+import { WorkflowAnalyzer, WorkflowRecommendation, WorkflowType } from '@/lib/workflow-analyzer'
 
 // Component to format AI messages with better structure
 function FormattedMessage({ content }: { content: string }) {
@@ -229,6 +231,8 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [currentRecommendation, setCurrentRecommendation] = useState<WorkflowRecommendation | null>(null)
+  const [showRecommendation, setShowRecommendation] = useState(false)
 
   // Initialize session on component mount
   useEffect(() => {
@@ -270,11 +274,68 @@ export default function ChatPage() {
     }
   }
 
+  // Analyze user message for workflow recommendation
+  const analyzeForRecommendation = (userMessage: string) => {
+    // Only analyze if this is early in the conversation and contains automation keywords
+    const automationKeywords = [
+      'automate', 'workflow', 'process', 'trigger', 'when', 'if', 'schedule',
+      'integrate', 'connect', 'sync', 'monitor', 'alert', 'notification'
+    ]
+    
+    const hasAutomationIntent = automationKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    )
+    
+    // Trigger analysis if this looks like an automation request and we haven't shown recommendation yet
+    if (hasAutomationIntent && messages.length < 4 && !showRecommendation) {
+      const recommendation = WorkflowAnalyzer.analyzeWorkflow(userMessage)
+      setCurrentRecommendation(recommendation)
+      setShowRecommendation(true)
+    }
+  }
+
+  // Handle recommendation acceptance
+  const handleAcceptRecommendation = (type: WorkflowType) => {
+    setShowRecommendation(false)
+    // Add a message about the accepted recommendation
+    const confirmationMessage = `Perfect! I'll create a ${type.replace('-', ' ')} workflow for you. Let me gather a few more details to build the optimal solution.`
+    
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: confirmationMessage
+    }])
+    
+    // Save the confirmation message
+    if (currentSessionId) {
+      StorageService.autoSaveMessage('assistant', confirmationMessage)
+    }
+  }
+
+  // Handle recommendation modification
+  const handleModifyRecommendation = () => {
+    setShowRecommendation(false)
+    const modifyMessage = `I'd be happy to adjust my recommendation! Could you tell me more about your specific requirements or any constraints I should consider?`
+    
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: modifyMessage
+    }])
+    
+    // Save the modify message
+    if (currentSessionId) {
+      StorageService.autoSaveMessage('assistant', modifyMessage)
+    }
+  }
+
   const sendMessage = async () => {
     if (!input.trim()) return
 
     const userMessage = { role: 'user' as const, content: input }
     setMessages(prev => [...prev, userMessage])
+    
+    // Analyze for workflow recommendation before clearing input
+    analyzeForRecommendation(input)
+    
     setInput('')
     setIsLoading(true)
 
@@ -508,6 +569,18 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+            
+            {/* Show workflow recommendation if available */}
+            {showRecommendation && currentRecommendation && (
+              <div style={{ margin: '1.5rem 0' }}>
+                <WorkflowRecommendationComponent
+                  recommendation={currentRecommendation}
+                  onAccept={handleAcceptRecommendation}
+                  onModify={handleModifyRecommendation}
+                />
+              </div>
+            )}
+            
             {isLoading && (
               <div style={{ 
                 display: 'flex', 
