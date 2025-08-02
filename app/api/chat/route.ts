@@ -173,7 +173,17 @@ When generating n8n workflow JSON, follow these critical requirements:
 - ENSURE proper closing braces and brackets
 - END with a complete ]} structure
 - VALIDATE that all opening brackets/braces have matching closing ones
-- If workflow is complex, simplify but keep it COMPLETE and VALID
+- Keep workflows SIMPLE and BASIC - avoid complex parameter structures
+- Use MINIMAL node configurations that definitely work in n8n
+- Avoid complex schemas, advanced options, and nested parameter objects
+- Focus on CORE functionality only - users can customize later
+
+SIMPLE N8N WORKFLOW RULES:
+- Use basic node parameters only (avoid complex nested objects)
+- Gmail Trigger: minimal filters, basic polling
+- Google Sheets: simple append operations, no complex schemas
+- Code nodes: basic JavaScript only
+- Avoid: complex conditions, advanced options, nested parameter structures
 
 CONNECTION EXAMPLE:
 If you have nodes named "Telegram Trigger" and "Google Calendar", the connections should be:
@@ -183,11 +193,24 @@ If you have nodes named "Telegram Trigger" and "Google Calendar", the connection
       [
         {
           "node": "Google Calendar",
-          "type": "main",
+          "type": "main", 
           "index": 0
         }
       ]
     ]
+  }
+}
+
+WORKING BASIC NODE EXAMPLE:
+{
+  "id": "simple_gmail",
+  "name": "Gmail Trigger", 
+  "type": "n8n-nodes-base.gmailTrigger",
+  "typeVersion": 1,
+  "position": [250, 300],
+  "parameters": {
+    "pollTimes": {"item": [{"mode": "everyMinute", "minute": 5}]},
+    "simple": true
   }
 }
 
