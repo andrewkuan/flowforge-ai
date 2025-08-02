@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "endpoint": "watch",
+        "label": "New Gmail Trigger",
+        "mailbox": "your-gmail-account@gmail.com"
+      },
+      "type": "n8n-nodes-base.gmail"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "emailSubject": "={{$node[\"New Gmail Trigger\"].json[\"subject\"]}}",
+        "label": "new",
+        "options": {},
+        "recipient": "={{$node[\"New Gmail Trigger\"].json[\"from\"]}}"
+      },
+      "type": "n8n-nodes-base.gmail"
+    }
+  ],
+  "pinData": {},
+  "settings": {},
+  "workflowId": 1,
+  "id": "1",
+  "active": true,
+  "connections": {
+    "New Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

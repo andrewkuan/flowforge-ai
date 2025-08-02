@@ -5,59 +5,148 @@ import Link from 'next/link'
 
 // Component to format AI messages with better structure
 function FormattedMessage({ content }: { content: string }) {
+  
+  // Function to extract and download JSON from message content
+  const extractAndDownloadJSON = (text: string) => {
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+      const jsonContent = jsonMatch[1].trim()
+      try {
+        // Validate JSON
+        JSON.parse(jsonContent)
+        
+        // Create download
+        const blob = new Blob([jsonContent], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'n8n-workflow.json'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        alert('Invalid JSON format')
+      }
+    }
+  }
+
   // Split content into paragraphs and format numbered lists
   const formatContent = (text: string) => {
-    const lines = text.split('\n').filter(line => line.trim() !== '')
     const elements: JSX.Element[] = []
     
-    lines.forEach((line, index) => {
-      const trimmedLine = line.trim()
-      
-      // Check if it's a numbered list item
-      if (/^\d+\./.test(trimmedLine)) {
+    // Check if there's JSON content
+    const hasJSON = text.includes('```json')
+    
+    // Split by code blocks first
+    const parts = text.split(/(```json[\s\S]*?```)/g)
+    
+    parts.forEach((part, partIndex) => {
+      if (part.startsWith('```json')) {
+        // This is a JSON code block
+        const jsonContent = part.replace(/```json\s*/, '').replace(/\s*```$/, '').trim()
         elements.push(
-          <div key={index} style={{ 
-            marginBottom: '0.5rem',
-            paddingLeft: '1rem'
+          <div key={`json-${partIndex}`} style={{ 
+            marginBottom: '1rem',
+            border: '1px solid #e1e5e9',
+            borderRadius: '8px',
+            overflow: 'hidden'
           }}>
-            <strong style={{ color: '#1a73e8' }}>
-              {trimmedLine.split('.')[0]}.
-            </strong>
-            <span style={{ marginLeft: '0.5rem' }}>
-              {trimmedLine.substring(trimmedLine.indexOf('.') + 1).trim()}
-            </span>
+            <div style={{
+              backgroundColor: '#f6f8fa',
+              padding: '0.5rem 1rem',
+              borderBottom: '1px solid #e1e5e9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '0.85rem', color: '#656d76', fontWeight: '500' }}>
+                n8n Workflow JSON
+              </span>
+              <button
+                onClick={() => extractAndDownloadJSON(part)}
+                style={{
+                  backgroundColor: '#1a73e8',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '4px',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                📥 Download
+              </button>
+            </div>
+            <pre style={{
+              margin: 0,
+              padding: '1rem',
+              backgroundColor: '#f6f8fa',
+              fontSize: '0.85rem',
+              lineHeight: '1.4',
+              overflow: 'auto',
+              maxHeight: '300px'
+            }}>
+              <code>{jsonContent}</code>
+            </pre>
           </div>
         )
-      }
-      // Check if it's a bullet point
-      else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
-        elements.push(
-          <div key={index} style={{ 
-            marginBottom: '0.4rem',
-            paddingLeft: '1rem',
-            display: 'flex',
-            alignItems: 'flex-start'
-          }}>
-            <span style={{ 
-              color: '#1a73e8', 
-              marginRight: '0.5rem',
-              fontWeight: 'bold'
-            }}>•</span>
-            <span>{trimmedLine.substring(2).trim()}</span>
-          </div>
-        )
-      }
-      // Regular paragraph
-      else {
-        elements.push(
-          <p key={index} style={{ 
-            marginBottom: '0.8rem',
-            lineHeight: '1.5',
-            color: '#2c3e50'
-          }}>
-            {trimmedLine}
-          </p>
-        )
+      } else {
+        // Regular text content
+        const lines = part.split('\n').filter(line => line.trim() !== '')
+        
+        lines.forEach((line, index) => {
+          const trimmedLine = line.trim()
+          if (!trimmedLine) return
+          
+          // Check if it's a numbered list item
+          if (/^\d+\./.test(trimmedLine)) {
+            elements.push(
+              <div key={`${partIndex}-${index}`} style={{ 
+                marginBottom: '0.5rem',
+                paddingLeft: '1rem'
+              }}>
+                <strong style={{ color: '#1a73e8' }}>
+                  {trimmedLine.split('.')[0]}.
+                </strong>
+                <span style={{ marginLeft: '0.5rem' }}>
+                  {trimmedLine.substring(trimmedLine.indexOf('.') + 1).trim()}
+                </span>
+              </div>
+            )
+          }
+          // Check if it's a bullet point
+          else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
+            elements.push(
+              <div key={`${partIndex}-${index}`} style={{ 
+                marginBottom: '0.4rem',
+                paddingLeft: '1rem',
+                display: 'flex',
+                alignItems: 'flex-start'
+              }}>
+                <span style={{ 
+                  color: '#1a73e8', 
+                  marginRight: '0.5rem',
+                  fontWeight: 'bold'
+                }}>•</span>
+                <span>{trimmedLine.substring(2).trim()}</span>
+              </div>
+            )
+          }
+          // Regular paragraph
+          else {
+            elements.push(
+              <p key={`${partIndex}-${index}`} style={{ 
+                marginBottom: '0.8rem',
+                lineHeight: '1.5',
+                color: '#2c3e50'
+              }}>
+                {trimmedLine}
+              </p>
+            )
+          }
+        })
       }
     })
     
