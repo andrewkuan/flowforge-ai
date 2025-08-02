@@ -224,7 +224,10 @@ function FormattedMessage({
               fontSize: '0.85rem',
               lineHeight: '1.4',
               overflow: 'auto',
-              maxHeight: '300px'
+              maxHeight: '300px',
+              maxWidth: '100%',
+              wordWrap: 'break-word',
+              whiteSpace: 'pre-wrap'
             }}>
               <code>{jsonContent}</code>
             </pre>
